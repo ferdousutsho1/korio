@@ -1,4 +1,6 @@
+pub mod commands;
 pub mod db;
+pub mod discovery;
 pub mod tracker;
 
 use std::sync::Mutex;
@@ -39,7 +41,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { db: Mutex::new(conn) })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            crate::commands::list_apps,
+            crate::commands::add_app,
+            crate::commands::remove_app,
+            crate::commands::running_apps,
+            crate::commands::usage_today,
+        ])
         .setup(|app| {
             crate::tracker::spawn(app.handle().clone());
             Ok(())
