@@ -120,4 +120,17 @@ mod tests {
         add_app(&c, "Chrome", "Chrome.EXE", "distracting", "#B8A98C").unwrap();
         assert_eq!(watched_exes(&c).unwrap(), vec!["chrome.exe".to_string()]);
     }
+
+    #[test]
+    fn removing_an_app_cascades_to_its_sessions() {
+        let c = open_in_memory().unwrap();
+        let id = add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        insert_session(&c, "code.exe", 1000, 1100, 90).unwrap();
+        remove_app(&c, id).unwrap();
+        // With PRAGMA foreign_keys = ON, the ON DELETE CASCADE must remove sessions too.
+        let orphans: i64 = c
+            .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(orphans, 0, "sessions should cascade-delete with their app");
+    }
 }

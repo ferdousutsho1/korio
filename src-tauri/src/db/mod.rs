@@ -5,6 +5,7 @@ use rusqlite::Connection;
 /// Open a connection and ensure the schema exists.
 pub fn open(path: &str) -> rusqlite::Result<Connection> {
     let conn = Connection::open(path)?;
+    init_connection(&conn)?;
     migrate(&conn)?;
     Ok(conn)
 }
@@ -12,8 +13,16 @@ pub fn open(path: &str) -> rusqlite::Result<Connection> {
 /// Open an in-memory DB (used by tests).
 pub fn open_in_memory() -> rusqlite::Result<Connection> {
     let conn = Connection::open_in_memory()?;
+    init_connection(&conn)?;
     migrate(&conn)?;
     Ok(conn)
+}
+
+/// Connection-scoped pragmas. `foreign_keys` is OFF by default in SQLite and is
+/// NOT persistent, so it must be enabled on every connection for the schema's
+/// `ON DELETE CASCADE` to take effect.
+fn init_connection(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
 }
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
