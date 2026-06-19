@@ -1,6 +1,7 @@
 <script lang="ts">
   import Sidebar from "$lib/components/Sidebar.svelte";
   import Watchlist from "$lib/components/Watchlist.svelte";
+  import Dashboard from "$lib/components/Dashboard.svelte";
   import { theme, toggleTheme } from "$lib/theme";
   let active = $state("dashboard");
 </script>
@@ -14,7 +15,7 @@
     </header>
     <div class="view">
       {#if active === "dashboard"}
-        <p class="muted">Dashboard coming in Task 10.</p>
+        <Dashboard />
       {:else}
         <Watchlist />
       {/if}
