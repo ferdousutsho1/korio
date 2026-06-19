@@ -12,6 +12,7 @@ export const listApps = () => invoke<App[]>("list_apps");
 export const runningApps = () => invoke<RunningApp[]>("running_apps");
 export const removeApp = (id: number) => invoke<void>("remove_app", { id });
 export const usageToday = () => invoke<UsageSlice[]>("usage_today");
+export const scoreToday = () => invoke<number>("score_today");
 export const addApp = (a: { display_name: string; exe_name: string; kind: string; color: string }) =>
   invoke<number>("add_app", a);
 

@@ -52,3 +52,11 @@ pub fn usage_today(state: State<AppState>) -> Result<Vec<UsageSlice>, String> {
     let (from, to) = day_bounds_local();
     queries::usage_between(&conn, from, to).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn score_today(state: State<AppState>) -> Result<u8, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let (from, to) = day_bounds_local();
+    let slices = queries::usage_between(&conn, from, to).map_err(|e| e.to_string())?;
+    Ok(crate::score::focus_score(&slices))
+}

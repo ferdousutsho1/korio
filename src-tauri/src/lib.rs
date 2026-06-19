@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod discovery;
+pub mod score;
 pub mod tracker;
 
 use std::sync::Mutex;
@@ -48,6 +49,7 @@ pub fn run() {
             crate::commands::remove_app,
             crate::commands::running_apps,
             crate::commands::usage_today,
+            crate::commands::score_today,
         ])
         .setup(|app| {
             crate::tracker::spawn(app.handle().clone());
