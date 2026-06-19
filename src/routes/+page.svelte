@@ -9,7 +9,7 @@
   <section class="content">
     <header class="topbar">
       <h1>{active === "dashboard" ? "Dashboard" : "Watchlist"}</h1>
-      <button class="theme" onclick={toggleTheme}>{$theme === "light" ? "☾" : "☀"}</button>
+      <button class="theme" aria-label={$theme === "light" ? "Switch to dark theme" : "Switch to light theme"} onclick={toggleTheme}>{$theme === "light" ? "☾" : "☀"}</button>
     </header>
     <div class="view">
       {#if active === "dashboard"}
