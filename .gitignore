@@ -1,0 +1,15 @@
+# Brainstorm scratch (visual companion)
+.superpowers/
+
+# Rust / Tauri
+/target/
+/src-tauri/target/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# OS
+Thumbs.db
+desktop.ini
