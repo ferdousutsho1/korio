@@ -4,13 +4,16 @@ use crate::AppState;
 use tauri::State;
 
 fn day_bounds_local() -> (i64, i64) {
-    use chrono::{Datelike, Local, TimeZone};
+    use chrono::{Datelike, Local, TimeZone, Timelike};
     let now = Local::now();
-    let start = Local
+    // Local midnight. On DST "spring-forward" days some zones skip 00:00, so
+    // `.earliest()` can be None — fall back to (now - seconds since midnight)
+    // rather than panicking.
+    let from = Local
         .with_ymd_and_hms(now.year(), now.month(), now.day(), 0, 0, 0)
-        .single()
-        .expect("valid local midnight");
-    let from = start.timestamp();
+        .earliest()
+        .map(|dt| dt.timestamp())
+        .unwrap_or_else(|| now.timestamp() - now.num_seconds_from_midnight() as i64);
     (from, from + 86_400)
 }
 
