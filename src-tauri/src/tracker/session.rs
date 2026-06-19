@@ -9,7 +9,7 @@ pub struct Sample {
 }
 
 /// A completed session, ready to persist.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub struct FinishedSession {
     pub exe: String,
     pub started_at: i64,
