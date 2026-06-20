@@ -80,6 +80,10 @@ pub fn run() {
             crate::commands::update_task_title,
             crate::commands::delete_task,
             crate::commands::clear_done_tasks,
+            crate::commands::list_notes,
+            crate::commands::add_note,
+            crate::commands::update_note,
+            crate::commands::delete_note,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
