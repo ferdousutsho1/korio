@@ -74,6 +74,12 @@ pub fn run() {
             crate::commands::set_pin,
             crate::commands::verify_pin,
             crate::commands::clear_pin,
+            crate::commands::list_tasks,
+            crate::commands::add_task,
+            crate::commands::set_task_done,
+            crate::commands::update_task_title,
+            crate::commands::delete_task,
+            crate::commands::clear_done_tasks,
         ])
         .setup(|app| {
             build_tray(app.handle())?;

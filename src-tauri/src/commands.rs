@@ -1,4 +1,4 @@
-use crate::db::queries::{self, App, SessionRow, UsageSlice};
+use crate::db::queries::{self, App, SessionRow, Task, UsageSlice};
 use crate::discovery::{self, RunningApp};
 use crate::stats::{self, DayTotal};
 use crate::AppState;
@@ -187,6 +187,44 @@ pub fn verify_pin(state: State<AppState>, pin: String) -> Result<bool, String> {
         (Some(s), Some(h)) => Ok(crate::lock::verify_pin(&pin, &s, &h)),
         _ => Ok(true),
     }
+}
+
+#[tauri::command]
+pub fn list_tasks(state: State<AppState>) -> Result<Vec<Task>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_tasks(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_task(state: State<AppState>, title: String) -> Result<i64, String> {
+    let t = title.trim();
+    if t.is_empty() { return Err("empty title".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::add_task(&conn, t).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_task_done(state: State<AppState>, id: i64, done: bool) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_task_done(&conn, id, done).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_task_title(state: State<AppState>, id: i64, title: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::update_task_title(&conn, id, title.trim()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_task(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::delete_task(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn clear_done_tasks(state: State<AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::clear_done_tasks(&conn).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

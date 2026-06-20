@@ -198,6 +198,53 @@ pub fn total_seconds_between(conn: &Connection, from: i64, to: i64) -> rusqlite:
     )
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct Task {
+    pub id: i64,
+    pub title: String,
+    pub done: bool,
+    pub created_at: i64,
+}
+
+pub fn add_task(conn: &Connection, title: &str) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO tasks (title, done, created_at) VALUES (?1, 0, ?2)",
+        rusqlite::params![title, now()],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Active tasks first (done last), then oldest-first within each group.
+pub fn list_tasks(conn: &Connection) -> rusqlite::Result<Vec<Task>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, done, created_at FROM tasks ORDER BY done ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Task {
+        id: r.get(0)?, title: r.get(1)?, done: r.get::<_, i64>(2)? != 0, created_at: r.get(3)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn set_task_done(conn: &Connection, id: i64, done: bool) -> rusqlite::Result<()> {
+    conn.execute("UPDATE tasks SET done = ?2 WHERE id = ?1", rusqlite::params![id, done as i64])?;
+    Ok(())
+}
+
+pub fn update_task_title(conn: &Connection, id: i64, title: &str) -> rusqlite::Result<()> {
+    conn.execute("UPDATE tasks SET title = ?2 WHERE id = ?1", rusqlite::params![id, title])?;
+    Ok(())
+}
+
+pub fn delete_task(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM tasks WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+pub fn clear_done_tasks(conn: &Connection) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM tasks WHERE done = 1", [])?;
+    Ok(())
+}
+
 fn now() -> i64 { chrono::Utc::now().timestamp() }
 
 #[cfg(test)]
@@ -301,5 +348,34 @@ mod tests {
         insert_session(&c, "chrome.exe", 1200, 1300, 50).unwrap();
         insert_session(&c, "code.exe", 9000, 9100, 999).unwrap(); // outside
         assert_eq!(total_seconds_between(&c, 0, 2000).unwrap(), 150);
+    }
+
+    #[test]
+    fn tasks_add_list_toggle_orders_active_first() {
+        let c = open_in_memory().unwrap();
+        let a = add_task(&c, "Write plan").unwrap();
+        let _b = add_task(&c, "Review PR").unwrap();
+        assert_eq!(list_tasks(&c).unwrap().len(), 2);
+        set_task_done(&c, a, true).unwrap();
+        let list = list_tasks(&c).unwrap();
+        assert_eq!(list[0].title, "Review PR"); // active first
+        assert_eq!(list[1].title, "Write plan");
+        assert!(list[1].done);
+    }
+
+    #[test]
+    fn tasks_update_delete_and_clear_done() {
+        let c = open_in_memory().unwrap();
+        let a = add_task(&c, "typo ttile").unwrap();
+        let b = add_task(&c, "done me").unwrap();
+        update_task_title(&c, a, "fixed title").unwrap();
+        assert_eq!(list_tasks(&c).unwrap().iter().find(|t| t.id == a).unwrap().title, "fixed title");
+        set_task_done(&c, b, true).unwrap();
+        clear_done_tasks(&c).unwrap();
+        let list = list_tasks(&c).unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, a);
+        delete_task(&c, a).unwrap();
+        assert!(list_tasks(&c).unwrap().is_empty());
     }
 }
