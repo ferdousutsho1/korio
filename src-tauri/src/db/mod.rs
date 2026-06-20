@@ -35,13 +35,16 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             kind  TEXT NOT NULL CHECK (kind IN ('productive','neutral','distracting'))
         );
         CREATE TABLE IF NOT EXISTS apps (
-            id           INTEGER PRIMARY KEY,
-            display_name TEXT NOT NULL,
-            exe_name     TEXT NOT NULL UNIQUE,
-            kind         TEXT NOT NULL DEFAULT 'neutral'
-                          CHECK (kind IN ('productive','neutral','distracting')),
-            color        TEXT NOT NULL DEFAULT '#C2410C',
-            created_at   INTEGER NOT NULL
+            id                INTEGER PRIMARY KEY,
+            display_name      TEXT NOT NULL,
+            exe_name          TEXT NOT NULL UNIQUE,
+            kind              TEXT NOT NULL DEFAULT 'neutral'
+                               CHECK (kind IN ('productive','neutral','distracting')),
+            color             TEXT NOT NULL DEFAULT '#C2410C',
+            created_at        INTEGER NOT NULL,
+            daily_cap_seconds INTEGER NOT NULL DEFAULT 0,
+            limit_action      TEXT NOT NULL DEFAULT 'warn'
+                               CHECK (limit_action IN ('warn','close'))
         );
         CREATE TABLE IF NOT EXISTS sessions (
             id             INTEGER PRIMARY KEY,
@@ -52,5 +55,20 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
         "#,
-    )
+    )?;
+    add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;
+    add_column_if_missing(conn, "apps", "limit_action", "TEXT NOT NULL DEFAULT 'warn'")?;
+    Ok(())
+}
+
+/// Add a column only if it isn't already present (SQLite ALTER lacks IF NOT EXISTS).
+fn add_column_if_missing(conn: &Connection, table: &str, column: &str, decl: &str) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let existing: Vec<String> = stmt
+        .query_map([], |r| r.get::<_, String>(1))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    if !existing.iter().any(|c| c == column) {
+        conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl};"))?;
+    }
+    Ok(())
 }

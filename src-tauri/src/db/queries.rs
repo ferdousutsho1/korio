@@ -8,6 +8,8 @@ pub struct App {
     pub exe_name: String,
     pub kind: String,
     pub color: String,
+    pub daily_cap_seconds: i64,
+    pub limit_action: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -52,13 +54,45 @@ pub fn remove_app(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 
 pub fn list_apps(conn: &Connection) -> rusqlite::Result<Vec<App>> {
     let mut stmt = conn.prepare(
-        "SELECT id, display_name, exe_name, kind, color FROM apps ORDER BY display_name COLLATE NOCASE",
+        "SELECT id, display_name, exe_name, kind, color, daily_cap_seconds, limit_action
+         FROM apps ORDER BY display_name COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], |r| Ok(App {
         id: r.get(0)?, display_name: r.get(1)?, exe_name: r.get(2)?,
         kind: r.get(3)?, color: r.get(4)?,
+        daily_cap_seconds: r.get(5)?, limit_action: r.get(6)?,
     }))?;
     rows.collect()
+}
+
+/// Set the daily cap (seconds; 0 = no limit) and action ('warn'|'close') for an app.
+pub fn set_app_limit(conn: &Connection, id: i64, daily_cap_seconds: i64, limit_action: &str)
+    -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE apps SET daily_cap_seconds = ?2, limit_action = ?3 WHERE id = ?1",
+        rusqlite::params![id, daily_cap_seconds, limit_action],
+    )?;
+    Ok(())
+}
+
+/// (lowercased exe, cap_seconds, action) for every app that has a cap (> 0).
+pub fn app_limits(conn: &Connection) -> rusqlite::Result<Vec<(String, i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT LOWER(exe_name), daily_cap_seconds, limit_action FROM apps WHERE daily_cap_seconds > 0",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    rows.collect()
+}
+
+/// Total active seconds for one exe within [from, to).
+pub fn app_seconds_between(conn: &Connection, exe: &str, from: i64, to: i64) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(s.active_seconds), 0)
+         FROM sessions s JOIN apps a ON a.id = s.app_id
+         WHERE LOWER(a.exe_name) = LOWER(?1) AND s.started_at >= ?2 AND s.started_at < ?3",
+        rusqlite::params![exe, from, to],
+        |r| r.get(0),
+    )
 }
 
 /// All watched exe names, lower-cased, for the tracker's "is this watched?" check.
@@ -171,5 +205,26 @@ mod tests {
         assert_eq!(rows[0].started_at, 1000); // oldest first
         assert_eq!(rows[1].started_at, 1200);
         assert_eq!(rows[0].display_name, "VS Code");
+    }
+
+    #[test]
+    fn set_app_limit_and_app_limits_roundtrip() {
+        let c = open_in_memory().unwrap();
+        let id = add_app(&c, "YouTube", "chrome.exe", "distracting", "#B23A48").unwrap();
+        set_app_limit(&c, id, 1800, "close").unwrap();
+        let limits = app_limits(&c).unwrap();
+        assert_eq!(limits, vec![("chrome.exe".to_string(), 1800, "close".to_string())]);
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        assert_eq!(app_limits(&c).unwrap().len(), 1); // no-cap app excluded
+    }
+
+    #[test]
+    fn app_seconds_between_sums_one_exe() {
+        let c = open_in_memory().unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        insert_session(&c, "code.exe", 1000, 1100, 100).unwrap();
+        insert_session(&c, "code.exe", 1200, 1300, 50).unwrap();
+        assert_eq!(app_seconds_between(&c, "CODE.EXE", 0, 2000).unwrap(), 150);
+        assert_eq!(app_seconds_between(&c, "code.exe", 0, 1150).unwrap(), 100);
     }
 }

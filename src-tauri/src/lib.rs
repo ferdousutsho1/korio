@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod db;
 pub mod discovery;
+pub mod limits;
 pub mod score;
 pub mod stats;
 pub mod tracker;
