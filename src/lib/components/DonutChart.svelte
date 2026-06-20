@@ -18,7 +18,8 @@
 </script>
 
 <div class="donut">
-  <svg viewBox="0 0 180 180">
+  <svg viewBox="0 0 180 180" role="img" aria-label={`Total tracked time today: ${formatDuration(total)}`}>
+    <title>{`Total tracked time today: ${formatDuration(total)}`}</title>
     <g transform="translate(90,90) rotate(-90)">
       {#if total === 0}
         <circle r={R} fill="none" stroke="var(--line)" stroke-width="20" />
