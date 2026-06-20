@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { browser } from "$app/environment";
+  import { listen } from "@tauri-apps/api/event";
   import { snoozeLimit, ignoreLimit, forceClose, type LimitEvent } from "$lib/api";
   import { formatDuration } from "$lib/format";
 
@@ -9,14 +10,12 @@
 
   onMount(() => {
     if (!browser) return;
-    let unlistens: Array<() => void> = [];
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<LimitEvent>("limit-reached", (e) => { current = e.payload; }).then((u) => unlistens.push(u));
-      listen<string>("limit-closed", (e) => {
-        closedToast = e.payload;
-        setTimeout(() => { if (closedToast === e.payload) closedToast = null; }, 4000);
-      }).then((u) => unlistens.push(u));
-    });
+    const unlistens: Array<() => void> = [];
+    listen<LimitEvent>("limit-reached", (e) => { current = e.payload; }).then((u) => unlistens.push(u));
+    listen<string>("limit-closed", (e) => {
+      closedToast = e.payload;
+      setTimeout(() => { if (closedToast === e.payload) closedToast = null; }, 4000);
+    }).then((u) => unlistens.push(u));
     return () => unlistens.forEach((u) => u());
   });
 
