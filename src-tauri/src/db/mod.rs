@@ -54,6 +54,10 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             active_seconds INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_sessions_started ON sessions(started_at);
+        CREATE TABLE IF NOT EXISTS settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
         "#,
     )?;
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;

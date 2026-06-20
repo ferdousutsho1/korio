@@ -144,6 +144,36 @@ pub fn sessions_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Resu
     rows.collect()
 }
 
+pub fn get_setting(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |r| r.get(0))
+        .map(Some)
+        .or_else(|e| if e == rusqlite::Error::QueryReturnedNoRows { Ok(None) } else { Err(e) })
+}
+
+pub fn set_setting(conn: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        rusqlite::params![key, value],
+    )?;
+    Ok(())
+}
+
+pub fn all_settings(conn: &Connection) -> rusqlite::Result<Vec<(String, String)>> {
+    let mut stmt = conn.prepare("SELECT key, value FROM settings")?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+    rows.collect()
+}
+
+/// Total active seconds across ALL apps within [from, to).
+pub fn total_seconds_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(active_seconds), 0) FROM sessions WHERE started_at >= ?1 AND started_at < ?2",
+        rusqlite::params![from, to],
+        |r| r.get(0),
+    )
+}
+
 fn now() -> i64 { chrono::Utc::now().timestamp() }
 
 #[cfg(test)]
@@ -226,5 +256,26 @@ mod tests {
         insert_session(&c, "code.exe", 1200, 1300, 50).unwrap();
         assert_eq!(app_seconds_between(&c, "CODE.EXE", 0, 2000).unwrap(), 150);
         assert_eq!(app_seconds_between(&c, "code.exe", 0, 1150).unwrap(), 100);
+    }
+
+    #[test]
+    fn settings_get_set_roundtrip_and_default_none() {
+        let c = open_in_memory().unwrap();
+        assert_eq!(get_setting(&c, "autostart").unwrap(), None);
+        set_setting(&c, "autostart", "true").unwrap();
+        assert_eq!(get_setting(&c, "autostart").unwrap(), Some("true".to_string()));
+        set_setting(&c, "autostart", "false").unwrap();
+        assert_eq!(get_setting(&c, "autostart").unwrap(), Some("false".to_string()));
+    }
+
+    #[test]
+    fn total_seconds_between_sums_all_apps() {
+        let c = open_in_memory().unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        add_app(&c, "Chrome", "chrome.exe", "distracting", "#B23A48").unwrap();
+        insert_session(&c, "code.exe", 1000, 1100, 100).unwrap();
+        insert_session(&c, "chrome.exe", 1200, 1300, 50).unwrap();
+        insert_session(&c, "code.exe", 9000, 9100, 999).unwrap(); // outside
+        assert_eq!(total_seconds_between(&c, 0, 2000).unwrap(), 150);
     }
 }

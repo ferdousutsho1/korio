@@ -54,6 +54,8 @@ pub fn run() {
             crate::commands::snooze_limit,
             crate::commands::ignore_limit,
             crate::commands::force_close,
+            crate::commands::get_settings,
+            crate::commands::set_setting,
         ])
         .setup(|app| {
             crate::tracker::spawn(app.handle().clone());
