@@ -1,7 +1,10 @@
+pub mod backup;
 pub mod commands;
 pub mod db;
+pub mod export;
 pub mod discovery;
 pub mod limits;
+pub mod lock;
 pub mod proc;
 pub mod score;
 pub mod stats;
@@ -42,6 +45,7 @@ pub fn run() {
             show_main(app);
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None::<Vec<&str>>,
@@ -63,6 +67,13 @@ pub fn run() {
             crate::commands::force_close,
             crate::commands::get_settings,
             crate::commands::set_setting,
+            crate::commands::export_data,
+            crate::commands::backup_db,
+            crate::commands::restore_db,
+            crate::commands::has_pin,
+            crate::commands::set_pin,
+            crate::commands::verify_pin,
+            crate::commands::clear_pin,
         ])
         .setup(|app| {
             build_tray(app.handle())?;

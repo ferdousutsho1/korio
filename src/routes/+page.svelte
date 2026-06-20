@@ -5,6 +5,7 @@
   import Stats from "$lib/components/Stats.svelte";
   import Settings from "$lib/components/Settings.svelte";
   import LimitWarning from "$lib/components/LimitWarning.svelte";
+  import LockScreen from "$lib/components/LockScreen.svelte";
   import { theme, toggleTheme } from "$lib/theme";
   let active = $state("dashboard");
 </script>
@@ -29,6 +30,7 @@
     </div>
   </section>
   <LimitWarning />
+  <LockScreen />
 </main>
 
 <style>

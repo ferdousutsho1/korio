@@ -31,6 +31,30 @@ pub struct SessionRow {
     pub active_seconds: i64,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct ExportRow {
+    pub app: String,
+    pub exe: String,
+    pub kind: String,
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub active_seconds: i64,
+}
+
+/// All sessions (all time), newest first, with their app info — for export.
+pub fn export_rows(conn: &Connection) -> rusqlite::Result<Vec<ExportRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.display_name, a.exe_name, a.kind, s.started_at, s.ended_at, s.active_seconds
+         FROM sessions s JOIN apps a ON a.id = s.app_id
+         ORDER BY s.started_at DESC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(ExportRow {
+        app: r.get(0)?, exe: r.get(1)?, kind: r.get(2)?,
+        started_at: r.get(3)?, ended_at: r.get(4)?, active_seconds: r.get(5)?,
+    }))?;
+    rows.collect()
+}
+
 /// Insert a watchlist app (idempotent on exe_name). Returns the row id.
 pub fn add_app(conn: &Connection, display_name: &str, exe_name: &str, kind: &str, color: &str)
     -> rusqlite::Result<i64> {

@@ -4,6 +4,29 @@
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
   import { hiddenSections, toggleSection } from "$lib/sidebar";
+  import { save, open } from "@tauri-apps/plugin-dialog";
+  import { exportData, backupDb, restoreDb } from "$lib/api";
+  import { hasPin, setPin, clearPin } from "$lib/api";
+
+  let dataMsg = $state("");
+  let pinSet = $state(false);
+  let newPin = $state("");
+
+  async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
+  async function removePin() { await clearPin(); pinSet = false; }
+  async function doExport(format: "csv" | "json") {
+    const path = await save({ defaultPath: `korio-export.${format}`,
+      filters: [{ name: format.toUpperCase(), extensions: [format] }] });
+    if (path) { await exportData(path, format); dataMsg = `Exported to ${path}`; }
+  }
+  async function doBackup() {
+    const path = await save({ defaultPath: "korio-backup.db", filters: [{ name: "Database", extensions: ["db"] }] });
+    if (path) { await backupDb(path); dataMsg = `Backed up to ${path}`; }
+  }
+  async function doRestore() {
+    const path = await open({ filters: [{ name: "Database", extensions: ["db"] }], multiple: false });
+    if (typeof path === "string") { await restoreDb(path); dataMsg = "Restored. Reopen views to see changes."; }
+  }
 
   const navOptions = [{ id: "stats", label: "Stats" }, { id: "watchlist", label: "Watchlist" }];
 
@@ -27,6 +50,7 @@
     for (const t of toggles) next[t.key] = s[t.key] !== undefined ? s[t.key] === "true" : t.def;
     try { next["autostart"] = await isEnabled(); } catch { /* keep stored value */ }
     values = next;
+    try { pinSet = await hasPin(); } catch { pinSet = false; }
   });
 
   async function toggle(key: string) {
@@ -90,6 +114,31 @@
         onclick={() => toggleSection(n.id)}><span class="knob"></span></button>
     </div>
   {/each}
+
+  <div class="label" style="margin-top:28px">Data</div>
+  <div class="row">
+    <div class="text"><div class="name">Export</div><div class="help">Save your full session log as a file.</div></div>
+    <div class="seg"><button onclick={() => doExport("csv")}>CSV</button><button onclick={() => doExport("json")}>JSON</button></div>
+  </div>
+  <div class="row">
+    <div class="text"><div class="name">Backup &amp; restore</div><div class="help">Save or load a complete copy of your database.</div></div>
+    <div class="seg"><button onclick={doBackup}>Back up</button><button onclick={doRestore}>Restore…</button></div>
+  </div>
+  {#if dataMsg}<p class="datamsg">{dataMsg}</p>{/if}
+
+  <div class="label" style="margin-top:28px">Privacy</div>
+  <div class="row">
+    <div class="text"><div class="name">App lock</div>
+      <div class="help">{pinSet ? "A PIN is required to open Korio." : "Require a PIN (4+ digits) to open Korio."}</div></div>
+    {#if pinSet}
+      <button class="reset" onclick={removePin}>Remove PIN</button>
+    {:else}
+      <div class="seg">
+        <input class="pin" type="password" inputmode="numeric" minlength="4" bind:value={newPin} placeholder="New PIN" aria-label="New PIN" />
+        <button onclick={savePin}>Set PIN</button>
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -119,4 +168,6 @@
   .csw { width: 24px; height: 24px; border-radius: 7px; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .csw.on { border-color: var(--text); }
   .picker { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
+  .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
+  .pin { width: 90px; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
 </style>
