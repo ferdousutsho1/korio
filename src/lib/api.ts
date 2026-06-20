@@ -47,5 +47,10 @@ export const exportData = (path: string, format: "csv" | "json") =>
 export const backupDb = (path: string) => invoke<void>("backup_db", { path });
 export const restoreDb = (path: string) => invoke<void>("restore_db", { path });
 
+export const hasPin = () => invoke<boolean>("has_pin");
+export const setPin = (pin: string) => invoke<void>("set_pin", { pin });
+export const verifyPin = (pin: string) => invoke<boolean>("verify_pin", { pin });
+export const clearPin = () => invoke<void>("clear_pin");
+
 const PALETTE = ["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3", "#B23A48"];
 export const colorFor = (i: number) => PALETTE[i % PALETTE.length];

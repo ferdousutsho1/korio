@@ -160,3 +160,39 @@ pub fn restore_db(state: State<AppState>, path: String) -> Result<(), String> {
     let mut conn = state.db.lock().map_err(|e| e.to_string())?;
     crate::backup::restore_from(&mut conn, &path).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn has_pin(state: State<AppState>) -> Result<bool, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let salt = queries::get_setting(&conn, "pin_salt").map_err(|e| e.to_string())?;
+    let hash = queries::get_setting(&conn, "pin_hash").map_err(|e| e.to_string())?;
+    Ok(salt.is_some() && hash.is_some())
+}
+
+#[tauri::command]
+pub fn set_pin(state: State<AppState>, pin: String) -> Result<(), String> {
+    let salt = crate::lock::new_salt();
+    let hash = crate::lock::hash_pin(&pin, &salt);
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_setting(&conn, "pin_salt", &salt).map_err(|e| e.to_string())?;
+    queries::set_setting(&conn, "pin_hash", &hash).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn verify_pin(state: State<AppState>, pin: String) -> Result<bool, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let salt = queries::get_setting(&conn, "pin_salt").map_err(|e| e.to_string())?;
+    let hash = queries::get_setting(&conn, "pin_hash").map_err(|e| e.to_string())?;
+    match (salt, hash) {
+        (Some(s), Some(h)) => Ok(crate::lock::verify_pin(&pin, &s, &h)),
+        _ => Ok(true),
+    }
+}
+
+#[tauri::command]
+pub fn clear_pin(state: State<AppState>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM settings WHERE key IN ('pin_salt','pin_hash')", [])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}

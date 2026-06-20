@@ -6,8 +6,14 @@
   import { hiddenSections, toggleSection } from "$lib/sidebar";
   import { save, open } from "@tauri-apps/plugin-dialog";
   import { exportData, backupDb, restoreDb } from "$lib/api";
+  import { hasPin, setPin, clearPin } from "$lib/api";
 
   let dataMsg = $state("");
+  let pinSet = $state(false);
+  let newPin = $state("");
+
+  async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
+  async function removePin() { await clearPin(); pinSet = false; }
   async function doExport(format: "csv" | "json") {
     const path = await save({ defaultPath: `korio-export.${format}`,
       filters: [{ name: format.toUpperCase(), extensions: [format] }] });
@@ -44,6 +50,7 @@
     for (const t of toggles) next[t.key] = s[t.key] !== undefined ? s[t.key] === "true" : t.def;
     try { next["autostart"] = await isEnabled(); } catch { /* keep stored value */ }
     values = next;
+    try { pinSet = await hasPin(); } catch { pinSet = false; }
   });
 
   async function toggle(key: string) {
@@ -118,6 +125,20 @@
     <div class="seg"><button onclick={doBackup}>Back up</button><button onclick={doRestore}>Restore…</button></div>
   </div>
   {#if dataMsg}<p class="datamsg">{dataMsg}</p>{/if}
+
+  <div class="label" style="margin-top:28px">Privacy</div>
+  <div class="row">
+    <div class="text"><div class="name">App lock</div>
+      <div class="help">{pinSet ? "A PIN is required to open Korio." : "Require a PIN (4+ digits) to open Korio."}</div></div>
+    {#if pinSet}
+      <button class="reset" onclick={removePin}>Remove PIN</button>
+    {:else}
+      <div class="seg">
+        <input class="pin" type="password" inputmode="numeric" minlength="4" bind:value={newPin} placeholder="New PIN" aria-label="New PIN" />
+        <button onclick={savePin}>Set PIN</button>
+      </div>
+    {/if}
+  </div>
 </div>
 
 <style>
@@ -148,4 +169,5 @@
   .csw.on { border-color: var(--text); }
   .picker { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
   .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
+  .pin { width: 90px; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
 </style>

@@ -4,6 +4,7 @@ pub mod db;
 pub mod export;
 pub mod discovery;
 pub mod limits;
+pub mod lock;
 pub mod proc;
 pub mod score;
 pub mod stats;
@@ -69,6 +70,10 @@ pub fn run() {
             crate::commands::export_data,
             crate::commands::backup_db,
             crate::commands::restore_db,
+            crate::commands::has_pin,
+            crate::commands::set_pin,
+            crate::commands::verify_pin,
+            crate::commands::clear_pin,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
