@@ -4,6 +4,23 @@
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
   import { hiddenSections, toggleSection } from "$lib/sidebar";
+  import { save, open } from "@tauri-apps/plugin-dialog";
+  import { exportData, backupDb, restoreDb } from "$lib/api";
+
+  let dataMsg = $state("");
+  async function doExport(format: "csv" | "json") {
+    const path = await save({ defaultPath: `korio-export.${format}`,
+      filters: [{ name: format.toUpperCase(), extensions: [format] }] });
+    if (path) { await exportData(path, format); dataMsg = `Exported to ${path}`; }
+  }
+  async function doBackup() {
+    const path = await save({ defaultPath: "korio-backup.db", filters: [{ name: "Database", extensions: ["db"] }] });
+    if (path) { await backupDb(path); dataMsg = `Backed up to ${path}`; }
+  }
+  async function doRestore() {
+    const path = await open({ filters: [{ name: "Database", extensions: ["db"] }], multiple: false });
+    if (typeof path === "string") { await restoreDb(path); dataMsg = "Restored. Reopen views to see changes."; }
+  }
 
   const navOptions = [{ id: "stats", label: "Stats" }, { id: "watchlist", label: "Watchlist" }];
 
@@ -90,6 +107,17 @@
         onclick={() => toggleSection(n.id)}><span class="knob"></span></button>
     </div>
   {/each}
+
+  <div class="label" style="margin-top:28px">Data</div>
+  <div class="row">
+    <div class="text"><div class="name">Export</div><div class="help">Save your full session log as a file.</div></div>
+    <div class="seg"><button onclick={() => doExport("csv")}>CSV</button><button onclick={() => doExport("json")}>JSON</button></div>
+  </div>
+  <div class="row">
+    <div class="text"><div class="name">Backup &amp; restore</div><div class="help">Save or load a complete copy of your database.</div></div>
+    <div class="seg"><button onclick={doBackup}>Back up</button><button onclick={doRestore}>Restore…</button></div>
+  </div>
+  {#if dataMsg}<p class="datamsg">{dataMsg}</p>{/if}
 </div>
 
 <style>
@@ -119,4 +147,5 @@
   .csw { width: 24px; height: 24px; border-radius: 7px; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .csw.on { border-color: var(--text); }
   .picker { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
+  .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
 </style>

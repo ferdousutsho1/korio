@@ -42,5 +42,10 @@ export const forceClose = (exe: string) => invoke<void>("force_close", { exe });
 export const getSettings = () => invoke<Record<string, string>>("get_settings");
 export const setSetting = (key: string, value: string) => invoke<void>("set_setting", { key, value });
 
+export const exportData = (path: string, format: "csv" | "json") =>
+  invoke<void>("export_data", { path, format });
+export const backupDb = (path: string) => invoke<void>("backup_db", { path });
+export const restoreDb = (path: string) => invoke<void>("restore_db", { path });
+
 const PALETTE = ["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3", "#B23A48"];
 export const colorFor = (i: number) => PALETTE[i % PALETTE.length];

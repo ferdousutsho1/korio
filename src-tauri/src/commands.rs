@@ -140,3 +140,23 @@ pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     queries::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn export_data(state: State<AppState>, path: String, format: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let rows = queries::export_rows(&conn).map_err(|e| e.to_string())?;
+    let contents = if format == "json" { crate::export::to_json(&rows) } else { crate::export::to_csv(&rows) };
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn backup_db(state: State<AppState>, path: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::backup::backup_to(&conn, &path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn restore_db(state: State<AppState>, path: String) -> Result<(), String> {
+    let mut conn = state.db.lock().map_err(|e| e.to_string())?;
+    crate::backup::restore_from(&mut conn, &path).map_err(|e| e.to_string())
+}
