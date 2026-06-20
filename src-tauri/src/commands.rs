@@ -94,3 +94,37 @@ pub fn day_sessions(state: State<AppState>, from: i64, to: i64) -> Result<Vec<Se
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     queries::sessions_between(&conn, from, to).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn set_app_limit(state: State<AppState>, id: i64, daily_cap_seconds: i64, limit_action: String)
+    -> Result<(), String> {
+    let action = if limit_action == "close" { "close" } else { "warn" };
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_app_limit(&conn, id, daily_cap_seconds.max(0), action).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn snooze_limit(state: State<AppState>, exe: String, minutes: i64) -> Result<(), String> {
+    let now = chrono::Utc::now().timestamp();
+    let mut rt = state.limits.lock().map_err(|e| e.to_string())?;
+    let s = rt.state_mut(&exe.to_lowercase());
+    s.snoozed_until = now + minutes.max(1) * 60;
+    s.warned = false;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn ignore_limit(state: State<AppState>, exe: String) -> Result<(), String> {
+    let mut rt = state.limits.lock().map_err(|e| e.to_string())?;
+    rt.state_mut(&exe.to_lowercase()).ignored = true;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn force_close(state: State<AppState>, exe: String) -> Result<(), String> {
+    {
+        let mut rt = state.limits.lock().map_err(|e| e.to_string())?;
+        rt.state_mut(&exe.to_lowercase()).warned = true;
+    }
+    crate::proc::force_close(&exe).map_err(|e| e.to_string())
+}

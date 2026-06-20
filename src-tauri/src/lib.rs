@@ -2,6 +2,7 @@ pub mod commands;
 pub mod db;
 pub mod discovery;
 pub mod limits;
+pub mod proc;
 pub mod score;
 pub mod stats;
 pub mod tracker;
@@ -11,6 +12,7 @@ use rusqlite::Connection;
 
 pub struct AppState {
     pub db: Mutex<Connection>,
+    pub limits: Mutex<crate::limits::LimitRuntime>,
 }
 
 /// Portable mode: korio.db next to the exe if that directory looks writable;
@@ -37,7 +39,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState { db: Mutex::new(conn) })
+        .manage(AppState { db: Mutex::new(conn), limits: Mutex::new(crate::limits::LimitRuntime::new()) })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_apps,
             crate::commands::add_app,
@@ -48,6 +50,10 @@ pub fn run() {
             crate::commands::usage_range,
             crate::commands::daily_totals,
             crate::commands::day_sessions,
+            crate::commands::set_app_limit,
+            crate::commands::snooze_limit,
+            crate::commands::ignore_limit,
+            crate::commands::force_close,
         ])
         .setup(|app| {
             crate::tracker::spawn(app.handle().clone());
