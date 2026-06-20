@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { getSettings, setSetting } from "$lib/api";
+  import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
 
   type Toggle = { key: string; label: string; help: string; def: boolean };
   const toggles: Toggle[] = [
@@ -14,11 +15,15 @@
     const s = await getSettings();
     const next: Record<string, boolean> = {};
     for (const t of toggles) next[t.key] = s[t.key] !== undefined ? s[t.key] === "true" : t.def;
+    try { next["autostart"] = await isEnabled(); } catch { /* keep stored value */ }
     values = next;
   });
 
   async function toggle(key: string) {
     values[key] = !values[key];
+    if (key === "autostart") {
+      try { values[key] ? await enable() : await disable(); } catch { /* ignore */ }
+    }
     await setSetting(key, values[key] ? "true" : "false");
   }
 </script>
