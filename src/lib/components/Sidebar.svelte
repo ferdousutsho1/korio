@@ -2,6 +2,7 @@
   let { active, onNavigate }: { active: string; onNavigate: (id: string) => void } = $props();
   const items = [
     { id: "dashboard", glyph: "◷", label: "Dashboard" },
+    { id: "stats", glyph: "▤", label: "Stats" },
     { id: "watchlist", glyph: "▦", label: "Watchlist" },
   ];
 </script>
