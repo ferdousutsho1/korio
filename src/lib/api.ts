@@ -62,3 +62,13 @@ export const setTaskDone = (id: number, done: boolean) => invoke<void>("set_task
 export const updateTaskTitle = (id: number, title: string) => invoke<void>("update_task_title", { id, title });
 export const deleteTask = (id: number) => invoke<void>("delete_task", { id });
 export const clearDoneTasks = () => invoke<void>("clear_done_tasks");
+
+export interface Note {
+  id: number; title: string; body: string; color: string;
+  due: string | null; created_at: number; updated_at: number;
+}
+export const listNotes = () => invoke<Note[]>("list_notes");
+export const addNote = () => invoke<number>("add_note");
+export const updateNote = (n: { id: number; title: string; body: string; color: string; due: string | null }) =>
+  invoke<void>("update_note", { id: n.id, title: n.title, body: n.body, color: n.color, due: n.due });
+export const deleteNote = (id: number) => invoke<void>("delete_note", { id });

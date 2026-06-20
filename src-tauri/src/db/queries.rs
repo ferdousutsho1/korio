@@ -247,6 +247,56 @@ pub fn clear_done_tasks(conn: &Connection) -> rusqlite::Result<()> {
 
 fn now() -> i64 { chrono::Utc::now().timestamp() }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct Note {
+    pub id: i64,
+    pub title: String,
+    pub body: String,
+    pub color: String,
+    pub due: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+/// Insert a blank note with a default color; returns its id.
+pub fn add_note(conn: &Connection) -> rusqlite::Result<i64> {
+    let t = now();
+    conn.execute(
+        "INSERT INTO notes (title, body, color, due, created_at, updated_at)
+         VALUES ('', '', 'amber', NULL, ?1, ?1)",
+        rusqlite::params![t],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Newest first (ties broken by id).
+pub fn list_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, body, color, due, created_at, updated_at
+         FROM notes ORDER BY created_at DESC, id DESC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Note {
+        id: r.get(0)?, title: r.get(1)?, body: r.get(2)?, color: r.get(3)?,
+        due: r.get(4)?, created_at: r.get(5)?, updated_at: r.get(6)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn update_note(
+    conn: &Connection, id: i64, title: &str, body: &str, color: &str, due: Option<&str>,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE notes SET title = ?2, body = ?3, color = ?4, due = ?5, updated_at = ?6 WHERE id = ?1",
+        rusqlite::params![id, title, body, color, due, now()],
+    )?;
+    Ok(())
+}
+
+pub fn delete_note(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM notes WHERE id = ?1", [id])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -377,5 +427,39 @@ mod tests {
         assert_eq!(list[0].id, a);
         delete_task(&c, a).unwrap();
         assert!(list_tasks(&c).unwrap().is_empty());
+    }
+
+    #[test]
+    fn notes_add_defaults_and_lists_newest_first() {
+        let c = open_in_memory().unwrap();
+        let a = add_note(&c).unwrap();
+        let b = add_note(&c).unwrap();
+        let list = list_notes(&c).unwrap();
+        assert_eq!(list.len(), 2);
+        // newest (higher id) first when created_at ties
+        assert_eq!(list[0].id, b);
+        assert_eq!(list[1].id, a);
+        // defaults
+        assert_eq!(list[0].title, "");
+        assert_eq!(list[0].body, "");
+        assert_eq!(list[0].color, "amber");
+        assert!(list[0].due.is_none());
+    }
+
+    #[test]
+    fn notes_update_and_delete() {
+        let c = open_in_memory().unwrap();
+        let a = add_note(&c).unwrap();
+        update_note(&c, a, "Groceries", "milk\neggs", "sage", Some("2026-07-01")).unwrap();
+        let n = list_notes(&c).unwrap().into_iter().find(|n| n.id == a).unwrap();
+        assert_eq!(n.title, "Groceries");
+        assert_eq!(n.body, "milk\neggs");
+        assert_eq!(n.color, "sage");
+        assert_eq!(n.due.as_deref(), Some("2026-07-01"));
+        // clearing the due date
+        update_note(&c, a, "Groceries", "milk\neggs", "sage", None).unwrap();
+        assert!(list_notes(&c).unwrap()[0].due.is_none());
+        delete_note(&c, a).unwrap();
+        assert!(list_notes(&c).unwrap().is_empty());
     }
 }

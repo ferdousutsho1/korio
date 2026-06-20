@@ -1,4 +1,4 @@
-use crate::db::queries::{self, App, SessionRow, Task, UsageSlice};
+use crate::db::queries::{self, App, Note, SessionRow, Task, UsageSlice};
 use crate::discovery::{self, RunningApp};
 use crate::stats::{self, DayTotal};
 use crate::AppState;
@@ -233,4 +233,31 @@ pub fn clear_pin(state: State<AppState>) -> Result<(), String> {
     conn.execute("DELETE FROM settings WHERE key IN ('pin_salt','pin_hash')", [])
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn list_notes(state: State<AppState>) -> Result<Vec<Note>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_notes(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_note(state: State<AppState>) -> Result<i64, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::add_note(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_note(
+    state: State<AppState>, id: i64, title: String, body: String, color: String, due: Option<String>,
+) -> Result<(), String> {
+    let due = due.as_deref().map(str::trim).filter(|s| !s.is_empty());
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::update_note(&conn, id, title.trim(), &body, color.trim(), due).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_note(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::delete_note(&conn, id).map_err(|e| e.to_string())
 }
