@@ -2,6 +2,7 @@ pub mod commands;
 pub mod db;
 pub mod discovery;
 pub mod score;
+pub mod stats;
 pub mod tracker;
 
 use std::sync::Mutex;
