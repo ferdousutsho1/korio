@@ -35,5 +35,4 @@
   .theme { width: 38px; height: 38px; border-radius: var(--radius-sm); border: 1px solid var(--line);
     background: var(--surface); color: var(--text); cursor: pointer; font-size: 16px; }
   .view { padding: 28px; overflow: auto; }
-  .muted { color: var(--muted); }
 </style>
