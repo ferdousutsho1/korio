@@ -1,0 +1,31 @@
+:root {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-body: -apple-system, "Segoe UI", system-ui, sans-serif;
+  --radius: 12px;
+  --radius-sm: 9px;
+  --tick: 160ms;
+}
+/* Aperture — light (default) */
+:root, [data-theme="light"] {
+  --bg: #F4F1EA;
+  --surface: #FBF9F4;
+  --sidebar: #ECE7DC;
+  --text: #1A1714;
+  --muted: #9A8F7C;
+  --line: #E5DECF;
+  --accent: #C2410C;
+  --accent-contrast: #ffffff;
+  --chip: #EFE7D8;
+}
+/* Aperture Noir — dark */
+[data-theme="dark"] {
+  --bg: #16140F;
+  --surface: #1E1B15;
+  --sidebar: #1E1B15;
+  --text: #EDE8DD;
+  --muted: #8C8270;
+  --line: #2A261E;
+  --accent: #E26A2C;
+  --accent-contrast: #16140F;
+  --chip: #2A261E;
+}
