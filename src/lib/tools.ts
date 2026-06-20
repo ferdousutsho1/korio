@@ -1,9 +1,8 @@
-import { writable } from "svelte/store";
+import { writable, get } from "svelte/store";
 import { browser } from "$app/environment";
 
 /** A monotonically-updating clock (ms since epoch), ticked ~every 50ms while the app is open. */
 export const nowMs = writable<number>(browser ? Date.now() : 0);
-if (browser) setInterval(() => nowMs.set(Date.now()), 50);
 
 // ---- Stopwatch ----
 export interface StopwatchState { running: boolean; startedAt: number; elapsed: number; laps: number[]; }
@@ -46,11 +45,18 @@ export function timerRemaining(t: TimerState, now: number): number {
   if (!t.running) return t.remaining;
   return Math.max(0, t.endsAt - now);
 }
-export function timerTick(now: number) {
-  timer.update((t) => {
+
+// ---- Shared ticker ----
+// One interval drives the live clock AND flips the timer to "done" exactly once on
+// completion. Doing this here (with get(), not an in-component $effect) keeps the store
+// write out of any reactive read/write cycle — components only ever READ the stores.
+if (browser) {
+  setInterval(() => {
+    const now = Date.now();
+    nowMs.set(now);
+    const t = get(timer);
     if (t.running && now >= t.endsAt) {
-      return { ...t, running: false, remaining: 0, done: true };
+      timer.set({ ...t, running: false, remaining: 0, done: true });
     }
-    return t;
-  });
+  }, 50);
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { nowMs, timer, timerSet, timerStartPause, timerReset, timerRemaining, timerTick } from "$lib/tools";
+  import { nowMs, timer, timerSet, timerStartPause, timerReset, timerRemaining } from "$lib/tools";
   import { formatClock } from "$lib/format";
 
   const presets = [1, 5, 10, 25];
@@ -7,8 +7,8 @@
   let remaining = $derived(timerRemaining($timer, $nowMs));
   let prevDone = false;
 
+  // The shared ticker in tools.ts flips `done`; this effect only reads it to beep once.
   $effect(() => {
-    timerTick($nowMs);
     if ($timer.done && !prevDone) beep();
     prevDone = $timer.done;
   });
