@@ -12,9 +12,15 @@
   let weeks = $derived.by(() => {
     const cols: { day: number; secs: number; level: number }[][] = [];
     let col: { day: number; secs: number; level: number }[] = [];
+    let first = true;
     for (const day of days) {
       const weekday = new Date(day * 1000).getDay(); // 0=Sun
       if (weekday === 0 && col.length) { cols.push(col); col = []; }
+      // pad the first (partial) week so each day sits on its weekday row
+      if (first && weekday !== 0) {
+        for (let i = 0; i < weekday; i++) col.push({ day: -1, secs: 0, level: -1 });
+      }
+      first = false;
       const secs = byDay.get(day) ?? 0;
       col.push({ day, secs, level: heatLevel(secs, max) });
     }
@@ -30,8 +36,12 @@
     {#each weeks as col}
       <div class="wk">
         {#each col as cell}
-          <button class="cell lvl{cell.level}" title={`${fmtDay(cell.day)} — ${formatDuration(cell.secs)}`}
-            onclick={() => onPickDay(cell.day)} aria-label={`${fmtDay(cell.day)}, ${formatDuration(cell.secs)}`}></button>
+          {#if cell.level < 0}
+            <span class="cell pad"></span>
+          {:else}
+            <button class="cell lvl{cell.level}" title={`${fmtDay(cell.day)} — ${formatDuration(cell.secs)}`}
+              onclick={() => onPickDay(cell.day)} aria-label={`${fmtDay(cell.day)}, ${formatDuration(cell.secs)}`}></button>
+          {/if}
         {/each}
       </div>
     {/each}
@@ -46,6 +56,7 @@
   .wk { display: flex; flex-direction: column; gap: 4px; }
   .cell { width: 14px; height: 14px; border-radius: 3px; border: none; cursor: pointer; padding: 0; }
   .cell:hover { outline: 1px solid var(--accent); }
+  .pad { visibility: hidden; cursor: default; }
   .lvl0 { background: color-mix(in srgb, var(--text) 7%, transparent); }
   .lvl1 { background: color-mix(in srgb, var(--accent) 30%, transparent); }
   .lvl2 { background: color-mix(in srgb, var(--accent) 55%, transparent); }
