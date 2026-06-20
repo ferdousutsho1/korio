@@ -29,3 +29,31 @@
   --accent-contrast: #16140F;
   --chip: #2A261E;
 }
+
+/* ---- Tint: Slate (cool gray) ---- */
+[data-theme="light"][data-tint="slate"] {
+  --bg: #F1F3F5; --surface: #FFFFFF; --sidebar: #E9ECEF; --text: #15191E;
+  --muted: #7A8694; --line: #DDE1E6; --chip: #E9ECEF;
+}
+[data-theme="dark"][data-tint="slate"] {
+  --bg: #0F1216; --surface: #171B21; --sidebar: #171B21; --text: #E6EAF0;
+  --muted: #818B98; --line: #242A33; --chip: #242A33;
+}
+/* ---- Tint: Sand (warm) ---- */
+[data-theme="light"][data-tint="sand"] {
+  --bg: #F6F0E6; --surface: #FFFBF4; --sidebar: #EFE6D6; --text: #1E1812;
+  --muted: #9C8C73; --line: #E6DAC6; --chip: #EFE6D6;
+}
+[data-theme="dark"][data-tint="sand"] {
+  --bg: #16130E; --surface: #201B14; --sidebar: #201B14; --text: #EFE7D8;
+  --muted: #9A8C74; --line: #2C2519; --chip: #2C2519;
+}
+/* ---- Tint: Mono (neutral gray) ---- */
+[data-theme="light"][data-tint="mono"] {
+  --bg: #F4F4F5; --surface: #FFFFFF; --sidebar: #ECECEE; --text: #18181B;
+  --muted: #8A8A90; --line: #E1E1E4; --chip: #ECECEE;
+}
+[data-theme="dark"][data-tint="mono"] {
+  --bg: #121214; --surface: #1A1A1D; --sidebar: #1A1A1D; --text: #EAEAEC;
+  --muted: #87878D; --line: #27272B; --chip: #27272B;
+}
