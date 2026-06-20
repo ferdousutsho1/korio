@@ -57,3 +57,13 @@
   --bg: #121214; --surface: #1A1A1D; --sidebar: #1A1A1D; --text: #EAEAEC;
   --muted: #87878D; --line: #27272B; --chip: #27272B;
 }
+
+/* ---- Sticky note palette (keyed by notes.color) ---- */
+:root, [data-theme="light"] {
+  --note-amber: #FBE7C2; --note-rose: #F6D6D6; --note-sage: #D9E7D2;
+  --note-slate: #D7DEE6; --note-butter: #F7EFC0; --note-sky: #D2E3F0;
+}
+[data-theme="dark"] {
+  --note-amber: #3A2C16; --note-rose: #3A2222; --note-sage: #1F2E1E;
+  --note-slate: #1F2730; --note-butter: #332E12; --note-sky: #15293A;
+}
