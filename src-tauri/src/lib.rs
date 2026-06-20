@@ -2,6 +2,7 @@ pub mod commands;
 pub mod db;
 pub mod discovery;
 pub mod score;
+pub mod stats;
 pub mod tracker;
 
 use std::sync::Mutex;
@@ -43,6 +44,9 @@ pub fn run() {
             crate::commands::running_apps,
             crate::commands::usage_today,
             crate::commands::score_today,
+            crate::commands::usage_range,
+            crate::commands::daily_totals,
+            crate::commands::day_sessions,
         ])
         .setup(|app| {
             crate::tracker::spawn(app.handle().clone());

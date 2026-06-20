@@ -19,6 +19,16 @@ pub struct UsageSlice {
     pub seconds: i64,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct SessionRow {
+    pub display_name: String,
+    pub color: String,
+    pub kind: String,
+    pub started_at: i64,
+    pub ended_at: i64,
+    pub active_seconds: i64,
+}
+
 /// Insert a watchlist app (idempotent on exe_name). Returns the row id.
 pub fn add_app(conn: &Connection, display_name: &str, exe_name: &str, kind: &str, color: &str)
     -> rusqlite::Result<i64> {
@@ -85,6 +95,21 @@ pub fn usage_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<
     rows.collect()
 }
 
+/// Raw sessions whose start falls within [from, to), joined with their app, oldest first.
+pub fn sessions_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<SessionRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.display_name, a.color, a.kind, s.started_at, s.ended_at, s.active_seconds
+         FROM sessions s JOIN apps a ON a.id = s.app_id
+         WHERE s.started_at >= ?1 AND s.started_at < ?2
+         ORDER BY s.started_at ASC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(SessionRow {
+        display_name: r.get(0)?, color: r.get(1)?, kind: r.get(2)?,
+        started_at: r.get(3)?, ended_at: r.get(4)?, active_seconds: r.get(5)?,
+    }))?;
+    rows.collect()
+}
+
 fn now() -> i64 { chrono::Utc::now().timestamp() }
 
 #[cfg(test)]
@@ -132,5 +157,19 @@ mod tests {
             .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
             .unwrap();
         assert_eq!(orphans, 0, "sessions should cascade-delete with their app");
+    }
+
+    #[test]
+    fn sessions_between_returns_rows_in_window_oldest_first() {
+        let c = open_in_memory().unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        insert_session(&c, "code.exe", 1200, 1260, 60).unwrap();
+        insert_session(&c, "code.exe", 1000, 1100, 90).unwrap();
+        insert_session(&c, "code.exe", 5000, 5100, 10).unwrap(); // outside
+        let rows = sessions_between(&c, 0, 2000).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].started_at, 1000); // oldest first
+        assert_eq!(rows[1].started_at, 1200);
+        assert_eq!(rows[0].display_name, "VS Code");
     }
 }
