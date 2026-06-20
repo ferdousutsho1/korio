@@ -20,7 +20,7 @@ export const removeApp = (id: number) => invoke<void>("remove_app", { id });
 export const usageToday = () => invoke<UsageSlice[]>("usage_today");
 export const scoreToday = () => invoke<number>("score_today");
 export const addApp = (a: { display_name: string; exe_name: string; kind: string; color: string }) =>
-  invoke<number>("add_app", a);
+  invoke<number>("add_app", { displayName: a.display_name, exeName: a.exe_name, kind: a.kind, color: a.color });
 
 export const usageRange = (from: number, to: number) =>
   invoke<UsageSlice[]>("usage_range", { from, to });
