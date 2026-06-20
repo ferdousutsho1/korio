@@ -23,7 +23,11 @@
   async function snooze() { if (current) { await snoozeLimit(current.exe, 10); current = null; } }
   async function ignore() { if (current) { await ignoreLimit(current.exe); current = null; } }
   async function close() { if (current) { await forceClose(current.exe); current = null; } }
+
+  function onKey(e: KeyboardEvent) { if (e.key === "Escape" && current) ignore(); }
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 {#if current}
   <div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) ignore(); }}>
