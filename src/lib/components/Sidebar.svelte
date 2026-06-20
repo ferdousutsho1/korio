@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { hiddenSections } from "$lib/sidebar";
   let { active, onNavigate }: { active: string; onNavigate: (id: string) => void } = $props();
   const items = [
     { id: "dashboard", glyph: "◷", label: "Dashboard" },
@@ -6,11 +7,12 @@
     { id: "watchlist", glyph: "▦", label: "Watchlist" },
     { id: "settings", glyph: "⚙", label: "Settings" },
   ];
+  let visible = $derived(items.filter((it) => !$hiddenSections.includes(it.id)));
 </script>
 
 <nav class="side">
   <div class="brand">Korio</div>
-  {#each items as it}
+  {#each visible as it}
     <button class:on={active === it.id} onclick={() => onNavigate(it.id)} title={it.label}>
       <span class="g">{it.glyph}</span><span class="l">{it.label}</span>
     </button>
