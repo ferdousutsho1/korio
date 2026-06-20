@@ -6,6 +6,7 @@
     { id: "stats", glyph: "▤", label: "Stats" },
     { id: "watchlist", glyph: "▦", label: "Watchlist" },
     { id: "tools", glyph: "⏱", label: "Tools" },
+    { id: "tasks", glyph: "✓", label: "Tasks" },
     { id: "settings", glyph: "⚙", label: "Settings" },
   ];
   let visible = $derived(items.filter((it) => !$hiddenSections.includes(it.id)));
