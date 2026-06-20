@@ -26,6 +26,7 @@
     <form class="box" onsubmit={submit}>
       <div class="brand">Korio</div>
       <p>Enter your PIN to unlock.</p>
+      <!-- svelte-ignore a11y_autofocus -->
       <input type="password" inputmode="numeric" bind:value={pin} class:err={error} aria-label="PIN" autofocus />
       <button type="submit">Unlock</button>
       {#if error}<div class="msg">Incorrect PIN.</div>{/if}
