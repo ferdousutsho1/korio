@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { open } from "@tauri-apps/plugin-dialog";
   import { listApps, runningApps, addApp, removeApp, setAppLimit, colorFor,
     type App, type RunningApp } from "$lib/api";
 
@@ -25,6 +26,15 @@
     await refresh();
   }
 
+  async function browseForExe() {
+    const path = await open({ multiple: false, filters: [{ name: "Programs", extensions: ["exe"] }] });
+    if (typeof path !== "string") return;
+    const file = path.replace(/^.*[\\/]/, "");   // "Code.exe"
+    const name = file.replace(/\.exe$/i, "");      // "Code"
+    await addApp({ display_name: name, exe_name: file, kind: "neutral", color: colorFor(apps.length) });
+    await refresh();
+  }
+
   async function drop(a: App) { await removeApp(a.id); await refresh(); }
 
   async function commitLimit(a: App, minutes: number, action: string) {
@@ -40,7 +50,10 @@
 <div class="wrap">
   <div class="head">
     <p class="sub">Apps Korio actively times. Time counts only while one is focused and you're active.</p>
-    <button class="add" onclick={openPicker}>+ Add app</button>
+    <div class="addbtns">
+      <button class="add" onclick={openPicker}>+ Add app</button>
+      <button class="add ghost" onclick={browseForExe}>Browse for .exe</button>
+    </div>
   </div>
 
   {#if apps.length === 0}
@@ -91,6 +104,8 @@
   .sub { color: var(--muted); margin: 0; max-width: 520px; }
   .add { background: var(--accent); color: var(--accent-contrast); border: none;
     padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer; font: inherit; }
+  .addbtns { display: flex; gap: 8px; }
+  .ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line); }
   .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius);
     padding: 40px; text-align: center; }
   .list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
