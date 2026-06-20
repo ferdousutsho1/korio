@@ -1,13 +1,15 @@
 <script lang="ts">
+  import Pomodoro from "$lib/components/Pomodoro.svelte";
   import Stopwatch from "$lib/components/Stopwatch.svelte";
   import CountdownTimer from "$lib/components/CountdownTimer.svelte";
   import WorldClock from "$lib/components/WorldClock.svelte";
   const tabs = [
+    { id: "pomodoro", label: "Pomodoro" },
     { id: "stopwatch", label: "Stopwatch" },
     { id: "timer", label: "Timer" },
     { id: "clock", label: "World Clock" },
   ];
-  let tab = $state("stopwatch");
+  let tab = $state("pomodoro");
 </script>
 
 <div class="tools">
@@ -17,7 +19,7 @@
     {/each}
   </div>
   <div class="panel">
-    {#if tab === "stopwatch"}<Stopwatch />{:else if tab === "timer"}<CountdownTimer />{:else}<WorldClock />{/if}
+    {#if tab === "pomodoro"}<Pomodoro />{:else if tab === "stopwatch"}<Stopwatch />{:else if tab === "timer"}<CountdownTimer />{:else}<WorldClock />{/if}
   </div>
 </div>
 
