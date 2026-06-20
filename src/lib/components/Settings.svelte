@@ -3,6 +3,9 @@
   import { getSettings, setSetting } from "$lib/api";
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
+  import { hiddenSections, toggleSection } from "$lib/sidebar";
+
+  const navOptions = [{ id: "stats", label: "Stats" }, { id: "watchlist", label: "Watchlist" }];
 
   type Toggle = { key: string; label: string; help: string; def: boolean };
   const toggles: Toggle[] = [
@@ -74,6 +77,17 @@
       <div class="text"><div class="name">{t.label}</div><div class="help">{t.help}</div></div>
       <button class="sw" class:on={values[t.key]} role="switch" aria-checked={values[t.key]}
         aria-label={t.label} onclick={() => toggle(t.key)}><span class="knob"></span></button>
+    </div>
+  {/each}
+
+  <div class="label" style="margin-top:28px">Sidebar</div>
+  {#each navOptions as n}
+    <div class="row">
+      <div class="text"><div class="name">Show {n.label}</div>
+        <div class="help">Display the {n.label} section in the sidebar.</div></div>
+      <button class="sw" class:on={!$hiddenSections.includes(n.id)} role="switch"
+        aria-checked={!$hiddenSections.includes(n.id)} aria-label={`Show ${n.label}`}
+        onclick={() => toggleSection(n.id)}><span class="knob"></span></button>
     </div>
   {/each}
 </div>
