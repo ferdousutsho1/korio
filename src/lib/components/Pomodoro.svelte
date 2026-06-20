@@ -5,15 +5,14 @@
 
   let remaining = $derived(pomoRemaining($pomodoro, $nowMs));
   let label = $state("");
-  let prevTransitions = 0;
+  let prevTransitions = -1; // -1 = not yet observed (don't chime on mount)
 
   const phaseName = (p: string) => p === "focus" ? "Focus" : p === "short" ? "Short break" : "Long break";
 
   $effect(() => {
-    if ($pomodoro.transitions !== prevTransitions) {
-      if (prevTransitions !== 0) chime();
-      prevTransitions = $pomodoro.transitions;
-    }
+    const t = $pomodoro.transitions;
+    if (prevTransitions !== -1 && t !== prevTransitions) chime();
+    prevTransitions = t;
   });
 
   function chime() {

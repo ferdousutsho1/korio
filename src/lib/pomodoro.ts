@@ -81,7 +81,9 @@ export function pomoReset() {
 export function pomoSkip() {
   const cfg = get(config);
   pomodoro.update((s) => {
-    const np = nextPhase(s.phase, s.completedFocus, cfg.longEvery);
+    // Skipping a focus doesn't complete it, so it never earns a long break →
+    // focus jumps to a short break; any break jumps to focus.
+    const np: Phase = s.phase === "focus" ? "short" : "focus";
     const dur = phaseDuration(cfg, np);
     return { ...s, phase: np, running: false, endsAt: 0, remaining: dur, transitions: s.transitions + 1 };
   });
