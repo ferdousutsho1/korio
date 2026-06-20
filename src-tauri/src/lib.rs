@@ -28,12 +28,6 @@ pub fn db_path() -> std::path::PathBuf {
     dir.join("korio.db")
 }
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let conn = crate::db::open(db_path().to_str().expect("db path is valid UTF-8"))
@@ -43,7 +37,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(AppState { db: Mutex::new(conn) })
         .invoke_handler(tauri::generate_handler![
-            greet,
             crate::commands::list_apps,
             crate::commands::add_app,
             crate::commands::remove_app,
