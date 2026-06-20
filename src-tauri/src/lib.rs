@@ -38,7 +38,14 @@ pub fn run() {
         .expect("failed to open database");
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main(app);
+        }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None::<Vec<&str>>,
+        ))
         .manage(AppState { db: Mutex::new(conn), limits: Mutex::new(crate::limits::LimitRuntime::new()) })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_apps,
@@ -54,11 +61,90 @@ pub fn run() {
             crate::commands::snooze_limit,
             crate::commands::ignore_limit,
             crate::commands::force_close,
+            crate::commands::get_settings,
+            crate::commands::set_setting,
         ])
         .setup(|app| {
+            build_tray(app.handle())?;
+            setup_main_window(app)?;
             crate::tracker::spawn(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn show_main(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn build_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{Menu, MenuItem};
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    let open_i = MenuItem::with_id(app, "open", "Open Korio", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit Korio", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
+
+    let _tray = TrayIconBuilder::with_id("main")
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Korio")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => show_main(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main(tray.app_handle());
+            }
+        })
+        .build(app)?;
+    Ok(())
+}
+
+fn setup_main_window(app: &tauri::App) -> tauri::Result<()> {
+    use tauri::Manager;
+    let win = app.get_webview_window("main").expect("main window exists");
+
+    if !read_bool_setting(app.handle(), "start_minimized", false) {
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+
+    let handle = app.handle().clone();
+    let win_for_event = win.clone();
+    win.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if read_bool_setting(&handle, "close_to_tray", true) {
+                api.prevent_close();
+                let _ = win_for_event.hide();
+            }
+        }
+    });
+    Ok(())
+}
+
+fn read_bool_setting(app: &tauri::AppHandle, key: &str, default: bool) -> bool {
+    use tauri::Manager;
+    let state = app.state::<AppState>();
+    let conn = match state.db.lock() {
+        Ok(c) => c,
+        Err(_) => return default,
+    };
+    match crate::db::queries::get_setting(&conn, key) {
+        Ok(Some(v)) => v == "true",
+        _ => default,
+    }
 }

@@ -36,6 +36,12 @@ fn local_today_start() -> i64 {
         .unwrap_or_else(|| now.timestamp() - now.num_seconds_from_midnight() as i64)
 }
 
+fn fmt_hm(secs: i64) -> String {
+    let h = secs / 3600;
+    let m = (secs % 3600) / 60;
+    if h > 0 { format!("{h}h {m}m") } else { format!("{m}m") }
+}
+
 fn display_name_for(state: &tauri::State<AppState>, exe: &str) -> Option<String> {
     let conn = state.db.lock().ok()?;
     conn.query_row("SELECT display_name FROM apps WHERE LOWER(exe_name) = LOWER(?1)", [exe], |r| r.get(0)).ok()
@@ -67,6 +73,14 @@ pub fn spawn(app: AppHandle) {
                     if let Ok(list) = queries::app_limits(&conn) {
                         limits_map = list.into_iter().map(|(e, c, a)| (e, (c, a))).collect();
                     }
+                }
+
+                let day_start = local_today_start();
+                let total = state.db.lock().ok()
+                    .and_then(|c| queries::total_seconds_between(&c, day_start, day_start + 86_400).ok())
+                    .unwrap_or(0);
+                if let Some(tray) = app.tray_by_id("main") {
+                    let _ = tray.set_tooltip(Some(format!("Korio — Today: {}", fmt_hm(total))));
                 }
             }
 

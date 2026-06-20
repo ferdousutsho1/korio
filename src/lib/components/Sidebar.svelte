@@ -4,6 +4,7 @@
     { id: "dashboard", glyph: "◷", label: "Dashboard" },
     { id: "stats", glyph: "▤", label: "Stats" },
     { id: "watchlist", glyph: "▦", label: "Watchlist" },
+    { id: "settings", glyph: "⚙", label: "Settings" },
   ];
 </script>
 

@@ -128,3 +128,15 @@ pub fn force_close(state: State<AppState>, exe: String) -> Result<(), String> {
     }
     crate::proc::force_close(&exe).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn get_settings(state: State<AppState>) -> Result<std::collections::HashMap<String, String>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    Ok(queries::all_settings(&conn).map_err(|e| e.to_string())?.into_iter().collect())
+}
+
+#[tauri::command]
+pub fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_setting(&conn, &key, &value).map_err(|e| e.to_string())
+}

@@ -39,5 +39,8 @@ export const snoozeLimit = (exe: string, minutes: number) =>
 export const ignoreLimit = (exe: string) => invoke<void>("ignore_limit", { exe });
 export const forceClose = (exe: string) => invoke<void>("force_close", { exe });
 
+export const getSettings = () => invoke<Record<string, string>>("get_settings");
+export const setSetting = (key: string, value: string) => invoke<void>("set_setting", { key, value });
+
 const PALETTE = ["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3", "#B23A48"];
 export const colorFor = (i: number) => PALETTE[i % PALETTE.length];
