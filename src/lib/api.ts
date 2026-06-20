@@ -54,3 +54,11 @@ export const clearPin = () => invoke<void>("clear_pin");
 
 const PALETTE = ["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3", "#B23A48"];
 export const colorFor = (i: number) => PALETTE[i % PALETTE.length];
+
+export interface Task { id: number; title: string; done: boolean; created_at: number; }
+export const listTasks = () => invoke<Task[]>("list_tasks");
+export const addTask = (title: string) => invoke<number>("add_task", { title });
+export const setTaskDone = (id: number, done: boolean) => invoke<void>("set_task_done", { id, done });
+export const updateTaskTitle = (id: number, title: string) => invoke<void>("update_task_title", { id, title });
+export const deleteTask = (id: number) => invoke<void>("delete_task", { id });
+export const clearDoneTasks = () => invoke<void>("clear_done_tasks");
