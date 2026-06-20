@@ -20,10 +20,8 @@
     });
   }
 
-  // Debounced save: mutate local note, persist 500ms after the last edit.
-  function edit(note: Note, patch: Partial<Note>) {
-    Object.assign(note, patch);
-    notes = notes; // trigger reactivity
+  // Debounced save: persist 500ms after the last edit to this note.
+  function scheduleSave(note: Note) {
     const existing = timers.get(note.id);
     if (existing) clearTimeout(existing);
     timers.set(note.id, setTimeout(() => {
@@ -52,22 +50,22 @@
       {#each notes as note (note.id)}
         <article class="card" data-note={note.id} style="background: var(--note-{note.color});">
           <header class="head">
-            <input class="title" placeholder="Title" value={note.title}
-              oninput={(e) => edit(note, { title: e.currentTarget.value })} aria-label="Note title" />
+            <input class="title" placeholder="Title" bind:value={note.title}
+              oninput={() => scheduleSave(note)} aria-label="Note title" />
             <button class="x" onclick={() => remove(note)} title="Delete" aria-label="Delete note">×</button>
           </header>
-          <textarea class="body" rows="3" placeholder="Write something…" value={note.body}
-            oninput={(e) => edit(note, { body: e.currentTarget.value })} aria-label="Note body"></textarea>
+          <textarea class="body" rows="3" placeholder="Write something…" bind:value={note.body}
+            oninput={() => scheduleSave(note)} aria-label="Note body"></textarea>
           <footer class="foot">
             <div class="swatches" role="group" aria-label="Note color">
               {#each NOTE_COLORS as c}
                 <button class="sw" class:on={note.color === c} style="background: var(--note-{c});"
                   title={c} aria-label={c} aria-pressed={note.color === c}
-                  onclick={() => edit(note, { color: c })}></button>
+                  onclick={() => { note.color = c; scheduleSave(note); }}></button>
               {/each}
             </div>
             <input class="due" type="date" class:overdue={isOverdue(note.due)} value={note.due ?? ""}
-              onchange={(e) => edit(note, { due: e.currentTarget.value || null })} aria-label="Due date" />
+              onchange={(e) => { note.due = e.currentTarget.value || null; scheduleSave(note); }} aria-label="Due date" />
           </footer>
         </article>
       {/each}
@@ -105,5 +103,5 @@
   .sw.on { outline: 2px solid var(--text); outline-offset: 1px; }
   .due { font: inherit; font-size: 11px; color: var(--text); background: none;
     border: 1px solid color-mix(in srgb, var(--text) 18%, transparent); border-radius: 6px; padding: 2px 4px; }
-  .due.overdue { color: #C2410C; border-color: #C2410C; }
+  .due.overdue { color: var(--note-overdue); border-color: var(--note-overdue); }
 </style>
