@@ -13,7 +13,9 @@
       label: `${s.display_name} · ${formatDuration(s.active_seconds)}`,
     };
   }));
-  const label = new Date(dayStart * 1000).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  let label = $derived(
+    new Date(dayStart * 1000).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })
+  );
   const hours = [0, 6, 12, 18, 24];
 </script>
 

@@ -3,6 +3,7 @@
   import Watchlist from "$lib/components/Watchlist.svelte";
   import Dashboard from "$lib/components/Dashboard.svelte";
   import Stats from "$lib/components/Stats.svelte";
+  import LimitWarning from "$lib/components/LimitWarning.svelte";
   import { theme, toggleTheme } from "$lib/theme";
   let active = $state("dashboard");
 </script>
@@ -24,6 +25,7 @@
       {/if}
     </div>
   </section>
+  <LimitWarning />
 </main>
 
 <style>

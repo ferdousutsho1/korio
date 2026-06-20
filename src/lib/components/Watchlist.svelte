@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { listApps, runningApps, addApp, removeApp, colorFor,
+  import { listApps, runningApps, addApp, removeApp, setAppLimit, colorFor,
     type App, type RunningApp } from "$lib/api";
 
   let apps = $state<App[]>([]);
@@ -27,6 +27,11 @@
 
   async function drop(a: App) { await removeApp(a.id); await refresh(); }
 
+  async function commitLimit(a: App, minutes: number, action: string) {
+    await setAppLimit(a.id, Math.max(0, Math.round(minutes)) * 60, action);
+    await refresh();
+  }
+
   function onOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) picking = false;
   }
@@ -47,6 +52,17 @@
           <span class="dot" style={`background:${a.color}`}></span>
           <span class="name">{a.display_name}</span>
           <span class="exe">{a.exe_name}</span>
+          <span class="limit">
+            <input class="cap" type="number" min="0" step="5" value={Math.round(a.daily_cap_seconds / 60)}
+              title="Daily limit (minutes, 0 = off)" aria-label={`Daily limit minutes for ${a.display_name}`}
+              onchange={(e) => commitLimit(a, +e.currentTarget.value, a.limit_action)} />
+            <span class="unit">min</span>
+            <button class="act" class:close={a.limit_action === "close"}
+              title={a.limit_action === "close" ? "Auto-close when over limit" : "Warn when over limit"}
+              onclick={() => commitLimit(a, Math.round(a.daily_cap_seconds / 60), a.limit_action === "close" ? "warn" : "close")}>
+              {a.limit_action === "close" ? "Auto-close" : "Warn"}
+            </button>
+          </span>
           <button class="x" onclick={() => drop(a)} title="Remove" aria-label="Remove {a.display_name}">×</button>
         </li>
       {/each}
@@ -83,8 +99,15 @@
   .dot { width: 10px; height: 10px; border-radius: 3px; }
   .name { font-weight: 600; }
   .exe { color: var(--muted); font-size: 12px; }
-  .x { margin-left: auto; border: none; background: transparent; color: var(--muted);
+  .x { border: none; background: transparent; color: var(--muted);
     font-size: 20px; cursor: pointer; line-height: 1; }
+  .limit { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .cap { width: 52px; font: inherit; font-size: 12px; padding: 4px 6px; text-align: right;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .unit { color: var(--muted); font-size: 11px; }
+  .act { font: inherit; font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm);
+    border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .act.close { border-color: var(--accent); color: var(--accent); }
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,.35);
     display: flex; align-items: center; justify-content: center; }
   .sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
