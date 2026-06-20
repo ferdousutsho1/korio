@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration, formatClock } from "./format";
+import { formatDuration, formatClock, formatStopwatch } from "./format";
 
 describe("formatDuration", () => {
   it("formats sub-minute as seconds", () => {
@@ -20,4 +20,14 @@ describe("formatClock", () => {
     expect(formatClock(0)).toBe("0:00:00");
     expect(formatClock(3600 + 7 * 60 + 9)).toBe("1:07:09");
   });
+});
+
+describe("formatStopwatch", () => {
+  it("renders M:SS.cc and adds hours only when needed", () => {
+    expect(formatStopwatch(0)).toBe("0:00.00");
+    expect(formatStopwatch(1230)).toBe("0:01.23");
+    expect(formatStopwatch(61230)).toBe("1:01.23");
+    expect(formatStopwatch(3661230)).toBe("1:01:01.23");
+  });
+  it("clamps negatives", () => { expect(formatStopwatch(-5)).toBe("0:00.00"); });
 });
