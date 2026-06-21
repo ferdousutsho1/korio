@@ -72,8 +72,9 @@
   async function toggleBrowser() {
     if (!browser) return;
     const next = !browser.enabled;
+    browser = { ...browser, enabled: next }; // optimistic, matches other toggles
     await setBrowserEnabled(next);
-    browser = await browserStatus();
+    try { browser = await browserStatus(); } catch { /* keep optimistic state */ }
   }
   async function copyToken() {
     if (browser?.token) await navigator.clipboard.writeText(browser.token);
