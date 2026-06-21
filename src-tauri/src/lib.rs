@@ -3,6 +3,7 @@ pub mod commands;
 pub mod db;
 pub mod export;
 pub mod discovery;
+pub mod goals;
 pub mod limits;
 pub mod lock;
 pub mod proc;

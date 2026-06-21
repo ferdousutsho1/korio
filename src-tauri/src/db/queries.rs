@@ -297,6 +297,73 @@ pub fn delete_note(conn: &Connection, id: i64) -> rusqlite::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct Goal {
+    pub id: i64,
+    pub scope: String,            // 'kind' | 'app' | 'total'
+    pub scope_ref: Option<String>,// kind name, or app_id as text, or NULL for total
+    pub comparator: String,       // 'gte' | 'lte'
+    pub target_seconds: i64,
+    pub created_at: i64,
+}
+
+/// A session row carrying the fields goal-bucketing needs (incl. app_id, which SessionRow lacks).
+pub struct GoalSession {
+    pub started_at: i64,
+    pub active_seconds: i64,
+    pub kind: String,
+    pub app_id: i64,
+}
+
+pub fn add_goal(conn: &Connection, scope: &str, scope_ref: Option<&str>, comparator: &str, target_seconds: i64)
+    -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO goals (scope, scope_ref, comparator, target_seconds, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![scope, scope_ref, comparator, target_seconds, now()],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+pub fn list_goals(conn: &Connection) -> rusqlite::Result<Vec<Goal>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, scope, scope_ref, comparator, target_seconds, created_at
+         FROM goals ORDER BY created_at ASC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Goal {
+        id: r.get(0)?, scope: r.get(1)?, scope_ref: r.get(2)?,
+        comparator: r.get(3)?, target_seconds: r.get(4)?, created_at: r.get(5)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn update_goal(conn: &Connection, id: i64, comparator: &str, target_seconds: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE goals SET comparator = ?2, target_seconds = ?3 WHERE id = ?1",
+        rusqlite::params![id, comparator, target_seconds],
+    )?;
+    Ok(())
+}
+
+pub fn delete_goal(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM goals WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+/// Sessions in [from, to) with app kind + app_id, oldest first (for goal bucketing).
+pub fn goal_sessions(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<GoalSession>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.started_at, s.active_seconds, a.kind, a.id
+         FROM sessions s JOIN apps a ON a.id = s.app_id
+         WHERE s.started_at >= ?1 AND s.started_at < ?2
+         ORDER BY s.started_at ASC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(GoalSession {
+        started_at: r.get(0)?, active_seconds: r.get(1)?, kind: r.get(2)?, app_id: r.get(3)?,
+    }))?;
+    rows.collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -461,5 +528,23 @@ mod tests {
         assert!(list_notes(&c).unwrap()[0].due.is_none());
         delete_note(&c, a).unwrap();
         assert!(list_notes(&c).unwrap().is_empty());
+    }
+
+    #[test]
+    fn goals_crud_roundtrip() {
+        let c = open_in_memory().unwrap();
+        let id = add_goal(&c, "kind", Some("productive"), "gte", 7200).unwrap();
+        add_goal(&c, "total", None, "gte", 14400).unwrap();
+        let all = list_goals(&c).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].scope, "kind");
+        assert_eq!(all[0].scope_ref.as_deref(), Some("productive"));
+        assert_eq!(all[0].target_seconds, 7200);
+        update_goal(&c, id, "lte", 1800).unwrap();
+        let g = list_goals(&c).unwrap().into_iter().find(|g| g.id == id).unwrap();
+        assert_eq!(g.comparator, "lte");
+        assert_eq!(g.target_seconds, 1800);
+        delete_goal(&c, id).unwrap();
+        assert_eq!(list_goals(&c).unwrap().len(), 1);
     }
 }
