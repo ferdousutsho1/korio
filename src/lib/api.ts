@@ -94,3 +94,15 @@ export const deleteGoal = (id: number) => invoke<void>("delete_goal", { id });
 
 export const hideCapture = () => invoke<void>("hide_capture");
 export const setCaptureShortcut = (enabled: boolean) => invoke<void>("set_capture_shortcut", { enabled });
+
+export interface BrowserStatus {
+  enabled: boolean;
+  port: number;
+  token: string;
+  connected: boolean;
+  last_seen_secs: number | null;
+  domain: string | null;
+}
+export const browserStatus = () => invoke<BrowserStatus>("browser_status");
+export const setBrowserEnabled = (enabled: boolean) =>
+  invoke<void>("set_browser_enabled", { enabled });
