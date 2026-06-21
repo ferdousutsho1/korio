@@ -3,8 +3,12 @@
 
 use rusqlite::Connection;
 use serde::Deserialize;
-use std::sync::atomic::AtomicBool;
+use std::io::Read;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
+use crate::AppState;
 
 /// The domain currently shown in the focused browser, with when it was last reported.
 #[derive(Clone)]
@@ -82,6 +86,111 @@ pub fn evaluate_active(expected_token: &str, body: &str) -> ActiveOutcome {
         Some(domain) => ActiveOutcome::Set(domain),
         None => ActiveOutcome::Clear,
     }
+}
+
+const DEFAULT_PORT: u16 = 7878;
+
+fn cors(resp: tiny_http::Response<std::io::Empty>) -> tiny_http::Response<std::io::Empty> {
+    use tiny_http::Header;
+    resp.with_header(Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap())
+        .with_header(Header::from_bytes(&b"Access-Control-Allow-Headers"[..], &b"Content-Type"[..]).unwrap())
+        .with_header(Header::from_bytes(&b"Access-Control-Allow-Methods"[..], &b"POST, GET, OPTIONS"[..]).unwrap())
+}
+
+/// Read the configured port from settings, falling back to the default.
+fn port_of(app: &AppHandle) -> u16 {
+    let state = app.state::<AppState>();
+    let conn = match state.db.lock() { Ok(c) => c, Err(_) => return DEFAULT_PORT };
+    crate::db::queries::get_setting(&conn, "browser_port").ok().flatten()
+        .and_then(|s| s.parse().ok()).unwrap_or(DEFAULT_PORT)
+}
+
+/// Start the loopback server on a background thread if not already running.
+pub fn start(app: AppHandle) {
+    {
+        let state = app.state::<AppState>();
+        let mut rt = state.browser.lock().unwrap();
+        if rt.stop.is_some() { return; } // already running
+        rt.stop = Some(Arc::new(AtomicBool::new(false)));
+    }
+    let stop = {
+        let state = app.state::<AppState>();
+        let guard = state.browser.lock().unwrap();
+        guard.stop.clone().unwrap()
+    };
+    let port = port_of(&app);
+
+    std::thread::spawn(move || {
+        let server = match tiny_http::Server::http(("127.0.0.1", port)) {
+            Ok(s) => s,
+            Err(e) => { eprintln!("browser server bind failed: {e}"); return; }
+        };
+        let token = {
+            let state = app.state::<AppState>();
+            let conn = state.db.lock().unwrap();
+            ensure_token(&conn).unwrap_or_default()
+        };
+
+        while !stop.load(Ordering::Relaxed) {
+            let mut req = match server.recv_timeout(Duration::from_millis(500)) {
+                Ok(Some(r)) => r,
+                Ok(None) => continue, // timeout → re-check stop flag
+                Err(_) => break,
+            };
+            let method = req.method().clone();
+            let url = req.url().to_string();
+
+            if method == tiny_http::Method::Options {
+                let _ = req.respond(cors(tiny_http::Response::empty(204)));
+                continue;
+            }
+            if method == tiny_http::Method::Get && url.starts_with("/blocked") {
+                // 3a placeholder: nothing is ever blocked yet.
+                let body = "[]";
+                let resp = tiny_http::Response::from_string(body)
+                    .with_status_code(200)
+                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
+                let _ = req.respond(resp.with_header(
+                    tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap()));
+                continue;
+            }
+            if method == tiny_http::Method::Post && url.starts_with("/active") {
+                let mut body = String::new();
+                let _ = req.as_reader().read_to_string(&mut body);
+                let outcome = evaluate_active(&token, &body);
+                let code = match outcome {
+                    ActiveOutcome::Unauthorized => 401,
+                    ActiveOutcome::Bad => 400,
+                    ActiveOutcome::Set(domain) => {
+                        let state = app.state::<AppState>();
+                        if let Ok(mut rt) = state.browser.lock() {
+                            rt.active = Some(ActiveSite { domain, updated_at: chrono::Utc::now().timestamp() });
+                        }
+                        204
+                    }
+                    ActiveOutcome::Clear => {
+                        let state = app.state::<AppState>();
+                        if let Ok(mut rt) = state.browser.lock() { rt.active = None; }
+                        204
+                    }
+                };
+                let _ = req.respond(cors(tiny_http::Response::empty(code)));
+                continue;
+            }
+            let _ = req.respond(cors(tiny_http::Response::empty(404)));
+        }
+    });
+}
+
+/// Signal the server thread to stop and clear the active site.
+pub fn stop(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut rt = match state.browser.lock() {
+        Ok(g) => g,
+        Err(_) => return,
+    };
+    if let Some(flag) = rt.stop.take() { flag.store(true, Ordering::Relaxed); }
+    rt.active = None;
 }
 
 #[cfg(test)]
