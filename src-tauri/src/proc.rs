@@ -26,8 +26,10 @@ pub fn force_close(exe: &str) -> std::io::Result<()> {
 pub fn launch_path(path: &str) -> std::io::Result<()> {
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
-        Command::new(path).spawn()?;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        Command::new(path).creation_flags(CREATE_NO_WINDOW).spawn()?;
     }
     #[cfg(not(windows))]
     {
