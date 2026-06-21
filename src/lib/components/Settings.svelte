@@ -180,7 +180,7 @@
     {#if browser.enabled}
       <div class="row">
         <div class="text"><div class="name">Status</div>
-          <div class="help">{#if browser.connected}● Connected{#if browser.domain} — {browser.domain}{/if}{:else}○ Waiting for extension…{/if}</div></div>
+          <div class="help">{#if browser.connected}● Connected{#if browser.domain}{' — '}{browser.domain}{/if}{:else}○ Waiting for extension…{/if}</div></div>
       </div>
       <div class="row">
         <div class="text"><div class="name">Pairing token</div>
