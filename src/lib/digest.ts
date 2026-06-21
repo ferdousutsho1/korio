@@ -42,3 +42,78 @@ export function composeDigest(s: DigestStats): { title: string; body: string } {
   if (s.goalsTotal > 0) lines.push(`${s.goalsMet}/${s.goalsTotal} goals met`);
   return { title: "Korio — today's recap", body: lines.join("\n") };
 }
+
+// ---- Scheduler (main window only; no-ops without Tauri) ----
+import { browser } from "$app/environment";
+import { isMainWindow } from "$lib/sync";
+import { getSettings, setSetting, usageToday, scoreToday, goalsProgress } from "$lib/api";
+import { navIntent } from "$lib/nav";
+
+let started = false;
+
+/** Start the once-a-day digest scheduler (main window only; safe to call without Tauri). */
+export function initDigest() {
+  if (!browser || started) return;
+  started = true;
+  setTimeout(check, 3_000);          // shortly after launch
+  setInterval(check, 30_000);        // then every 30s
+  registerClickHandler();
+}
+
+async function check() {
+  if (!isMainWindow()) return;
+  let s: Record<string, string>;
+  try { s = await getSettings(); } catch { return; } // not in Tauri
+  if (s.digest_enabled !== "true") return;
+  const target = parseHm(s.digest_time || "18:00");
+  if (target === null) return;
+  const now = new Date();
+  const today = ymd(now);
+  if (!shouldSend(true, minutesOfDay(now), target, s.digest_last_sent || "", today)) return;
+  await sendDigest();
+  await setSetting("digest_last_sent", today);
+}
+
+async function sendDigest() {
+  try {
+    const [usage, score, goals] = await Promise.all([usageToday(), scoreToday(), goalsProgress()]);
+    const total = usage.reduce((a, u) => a + u.seconds, 0);
+    const top = usage[0] ?? null; // usageToday is sorted DESC
+    const goalsMet = goals.filter((g) => g.met_today).length;
+    const { title, body } = composeDigest({
+      totalSeconds: total, score,
+      topName: top?.display_name ?? null, topSeconds: top?.seconds ?? 0,
+      goalsMet, goalsTotal: goals.length,
+    });
+    const notif = await import("@tauri-apps/plugin-notification");
+    let granted = await notif.isPermissionGranted();
+    if (!granted) granted = (await notif.requestPermission()) === "granted";
+    if (granted) notif.sendNotification({ title, body });
+  } catch { /* notification unavailable */ }
+}
+
+/** Best-effort: when the toast is activated, focus the window and route to Dashboard. */
+async function registerClickHandler() {
+  try {
+    const notif = await import("@tauri-apps/plugin-notification");
+    if (typeof notif.onAction === "function") {
+      await notif.onAction(async () => {
+        navIntent.set("dashboard");
+        try {
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          const w = getCurrentWindow();
+          await w.show(); await w.setFocus();
+        } catch { /* ignore */ }
+      });
+    }
+  } catch { /* onAction unsupported — toast still shows */ }
+}
+
+/** Ask the OS for notification permission; returns true if granted. */
+export async function ensureNotificationPermission(): Promise<boolean> {
+  try {
+    const notif = await import("@tauri-apps/plugin-notification");
+    if (await notif.isPermissionGranted()) return true;
+    return (await notif.requestPermission()) === "granted";
+  } catch { return false; }
+}
