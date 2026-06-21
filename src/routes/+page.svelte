@@ -12,10 +12,13 @@
   import LockScreen from "$lib/components/LockScreen.svelte";
   import { theme, toggleTheme } from "$lib/theme";
   import { browser } from "$app/environment";
+  import { onMount } from "svelte";
+  import { navIntent } from "$lib/nav";
   import WidgetHost from "$lib/components/widget/WidgetHost.svelte";
   import type { WidgetKind } from "$lib/api";
   const widgetKind = browser ? (new URLSearchParams(location.search).get("widget") as WidgetKind | null) : null;
   let active = $state("dashboard");
+  onMount(() => navIntent.subscribe((v) => { if (v) { active = v; navIntent.set(null); } }));
 </script>
 
 {#if widgetKind}

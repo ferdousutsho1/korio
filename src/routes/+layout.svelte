@@ -4,8 +4,9 @@
   import { initTheme } from "$lib/theme";
   import { initSidebar } from "$lib/sidebar";
   import { initSync } from "$lib/sync";
+  import { initDigest } from "$lib/digest";
   let { children } = $props();
-  onMount(() => { initTheme(); initSidebar(); initSync(); });
+  onMount(() => { initTheme(); initSidebar(); initSync(); initDigest(); });
 </script>
 
 {@render children()}

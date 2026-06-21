@@ -7,10 +7,13 @@
   import { save, open } from "@tauri-apps/plugin-dialog";
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
+  import { ensureNotificationPermission } from "$lib/digest";
 
   let dataMsg = $state("");
   let pinSet = $state(false);
   let newPin = $state("");
+  let digestEnabled = $state(false);
+  let digestTime = $state("18:00");
 
   async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
   async function removePin() { await clearPin(); pinSet = false; }
@@ -50,8 +53,21 @@
     for (const t of toggles) next[t.key] = s[t.key] !== undefined ? s[t.key] === "true" : t.def;
     try { next["autostart"] = await isEnabled(); } catch { /* keep stored value */ }
     values = next;
+    digestEnabled = s["digest_enabled"] === "true";
+    digestTime = s["digest_time"] || "18:00";
     try { pinSet = await hasPin(); } catch { pinSet = false; }
   });
+
+  async function toggleDigest() {
+    const next = !digestEnabled;
+    if (next) { await ensureNotificationPermission(); }
+    digestEnabled = next;
+    await setSetting("digest_enabled", next ? "true" : "false");
+  }
+  async function onDigestTime(e: Event) {
+    digestTime = (e.currentTarget as HTMLInputElement).value || "18:00";
+    await setSetting("digest_time", digestTime);
+  }
 
   async function toggle(key: string) {
     values[key] = !values[key];
@@ -103,6 +119,20 @@
         aria-label={t.label} onclick={() => toggle(t.key)}><span class="knob"></span></button>
     </div>
   {/each}
+
+  <div class="label" style="margin-top:28px">Notifications</div>
+  <div class="row">
+    <div class="text"><div class="name">End-of-day digest</div>
+      <div class="help">A daily summary of your focus time, score, top app, and goals.</div></div>
+    <button class="sw" class:on={digestEnabled} role="switch" aria-checked={digestEnabled}
+      aria-label="End-of-day digest" onclick={toggleDigest}><span class="knob"></span></button>
+  </div>
+  {#if digestEnabled}
+    <div class="row">
+      <div class="text"><div class="name">Digest time</div><div class="help">When the daily summary is shown.</div></div>
+      <input class="time" type="time" value={digestTime} onchange={onDigestTime} aria-label="Digest time" />
+    </div>
+  {/if}
 
   <div class="label" style="margin-top:28px">Sidebar</div>
   {#each navOptions as n}
@@ -170,4 +200,5 @@
   .picker { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
   .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
   .pin { width: 90px; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .time { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
 </style>
