@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8" /><title>Korio extension</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 380px; margin: 24px; }
+      label { display: block; margin: 12px 0 4px; font-size: 13px; }
+      input { width: 100%; padding: 6px 8px; box-sizing: border-box; }
+      button { margin-top: 14px; padding: 7px 14px; }
+      .ok { color: #2F6E4F; font-size: 13px; margin-left: 8px; }
+    </style>
+  </head>
+  <body>
+    <h3>Korio site reporter</h3>
+    <p style="font-size:13px;color:#555">Paste the pairing token from Korio &rarr; Settings &rarr; Browser tracking.</p>
+    <label for="token">Pairing token</label>
+    <input id="token" type="text" autocomplete="off" />
+    <label for="port">Port</label>
+    <input id="port" type="number" value="7878" />
+    <div><button id="save">Save</button><span id="msg" class="ok"></span></div>
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod browser;
 pub mod capture;
 pub mod commands;
 pub mod db;
@@ -19,6 +20,7 @@ use rusqlite::Connection;
 pub struct AppState {
     pub db: Mutex<Connection>,
     pub limits: Mutex<crate::limits::LimitRuntime>,
+    pub browser: Mutex<crate::browser::BrowserRuntime>,
 }
 
 /// Portable mode: korio.db next to the exe if that directory looks writable;
@@ -63,7 +65,11 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None::<Vec<&str>>,
         ))
-        .manage(AppState { db: Mutex::new(conn), limits: Mutex::new(crate::limits::LimitRuntime::new()) })
+        .manage(AppState {
+            db: Mutex::new(conn),
+            limits: Mutex::new(crate::limits::LimitRuntime::new()),
+            browser: Mutex::new(crate::browser::BrowserRuntime::default()),
+        })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_apps,
             crate::commands::add_app,
@@ -109,6 +115,8 @@ pub fn run() {
             crate::commands::goals_progress,
             crate::capture::hide_capture,
             crate::capture::set_capture_shortcut,
+            crate::browser::browser_status,
+            crate::browser::set_browser_enabled,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
@@ -118,6 +126,9 @@ pub fn run() {
                 let _ = app.handle().global_shortcut().register(crate::capture::SHORTCUT);
             }
             crate::tracker::spawn(app.handle().clone());
+            if read_bool_setting(app.handle(), "browser_enabled", false) {
+                crate::browser::start(app.handle().clone());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
