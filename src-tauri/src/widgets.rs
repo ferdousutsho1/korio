@@ -17,7 +17,9 @@ pub fn default_size(kind: &str) -> (f64, f64) {
 
 /// Parse "x,y,w,h" (logical) → (x,y,w,h). Returns None if malformed.
 pub fn parse_bounds(s: &str) -> Option<(f64, f64, f64, f64)> {
-    let p: Vec<f64> = s.split(',').filter_map(|x| x.trim().parse().ok()).collect();
+    let parts: Vec<&str> = s.split(',').collect();
+    if parts.len() != 4 { return None; }
+    let p: Vec<f64> = parts.iter().filter_map(|x| x.trim().parse().ok()).collect();
     if p.len() == 4 { Some((p[0], p[1], p[2], p[3])) } else { None }
 }
 
@@ -58,6 +60,7 @@ pub fn open_widget(app: AppHandle, kind: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn close_widget(app: AppHandle, kind: String) -> Result<(), String> {
+    if !valid(&kind) { return Err(format!("unknown widget: {kind}")); }
     if let Some(w) = app.get_webview_window(&wlabel(&kind)) {
         w.close().map_err(|e| e.to_string())?;
     }
@@ -66,6 +69,7 @@ pub fn close_widget(app: AppHandle, kind: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn set_widget_always_on_top(app: AppHandle, kind: String, on: bool) -> Result<(), String> {
+    if !valid(&kind) { return Err(format!("unknown widget: {kind}")); }
     if let Some(w) = app.get_webview_window(&wlabel(&kind)) {
         w.set_always_on_top(on).map_err(|e| e.to_string())?;
     }
@@ -95,6 +99,9 @@ mod tests {
         assert_eq!(parse_bounds("10,20,240"), None);
         assert_eq!(parse_bounds("bad"), None);
         assert_eq!(parse_bounds(""), None);
+        // more than 4 fields, or a non-numeric field, is rejected (no silent token-dropping)
+        assert_eq!(parse_bounds("10,20,240,150,99"), None);
+        assert_eq!(parse_bounds("10,bad,240,150"), None);
     }
 
     #[test]
