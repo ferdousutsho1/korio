@@ -10,9 +10,16 @@
   import LimitWarning from "$lib/components/LimitWarning.svelte";
   import LockScreen from "$lib/components/LockScreen.svelte";
   import { theme, toggleTheme } from "$lib/theme";
+  import { browser } from "$app/environment";
+  import WidgetHost from "$lib/components/widget/WidgetHost.svelte";
+  import type { WidgetKind } from "$lib/api";
+  const widgetKind = browser ? (new URLSearchParams(location.search).get("widget") as WidgetKind | null) : null;
   let active = $state("dashboard");
 </script>
 
+{#if widgetKind}
+<WidgetHost kind={widgetKind} />
+{:else}
 <main class="shell">
   <Sidebar {active} onNavigate={(id) => (active = id)} />
   <section class="content">
@@ -41,6 +48,7 @@
   <LimitWarning />
   <LockScreen />
 </main>
+{/if}
 
 <style>
   :global(html), :global(body) { margin: 0; height: 100%; }

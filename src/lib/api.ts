@@ -72,3 +72,11 @@ export const addNote = () => invoke<number>("add_note");
 export const updateNote = (n: { id: number; title: string; body: string; color: string; due: string | null }) =>
   invoke<void>("update_note", { id: n.id, title: n.title, body: n.body, color: n.color, due: n.due });
 export const deleteNote = (id: number) => invoke<void>("delete_note", { id });
+
+export type WidgetKind = "stopwatch" | "timer" | "clock" | "pomodoro";
+export const openWidget = (kind: WidgetKind) => invoke<void>("open_widget", { kind });
+export const closeWidget = (kind: WidgetKind) => invoke<void>("close_widget", { kind });
+export const setWidgetAlwaysOnTop = (kind: WidgetKind, on: boolean) =>
+  invoke<void>("set_widget_always_on_top", { kind, on });
+export const saveWidgetBounds = (kind: WidgetKind, x: number, y: number, w: number, h: number) =>
+  invoke<void>("save_widget_bounds", { kind, x, y, w, h });
