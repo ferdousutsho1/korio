@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { getSettings, setSetting } from "$lib/api";
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
@@ -8,7 +8,7 @@
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
   import { ensureNotificationPermission } from "$lib/digest";
-  import { setCaptureShortcut } from "$lib/api";
+  import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
 
   let dataMsg = $state("");
   let pinSet = $state(false);
@@ -16,6 +16,8 @@
   let digestEnabled = $state(false);
   let digestTime = $state("18:00");
   let captureEnabled = $state(true);
+  let browser = $state<BrowserStatus | null>(null);
+  let browserPoll: ReturnType<typeof setInterval> | null = null;
 
   async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
   async function removePin() { await clearPin(); pinSet = false; }
@@ -59,7 +61,23 @@
     digestTime = s["digest_time"] || "18:00";
     captureEnabled = s["capture_enabled"] !== "false";
     try { pinSet = await hasPin(); } catch { pinSet = false; }
+    try { browser = await browserStatus(); } catch { browser = null; }
+    browserPoll = setInterval(async () => {
+      try { browser = await browserStatus(); } catch { /* keep last */ }
+    }, 3000);
   });
+
+  onDestroy(() => { if (browserPoll) clearInterval(browserPoll); });
+
+  async function toggleBrowser() {
+    if (!browser) return;
+    const next = !browser.enabled;
+    await setBrowserEnabled(next);
+    browser = await browserStatus();
+  }
+  async function copyToken() {
+    if (browser?.token) await navigator.clipboard.writeText(browser.token);
+  }
 
   async function toggleCapture() {
     captureEnabled = !captureEnabled;
@@ -150,6 +168,30 @@
       aria-label="Global quick-capture" onclick={toggleCapture}><span class="knob"></span></button>
   </div>
 
+  <div class="label" style="margin-top:28px">Browser tracking</div>
+  {#if browser}
+    <div class="row">
+      <div class="text"><div class="name">Track browser sites</div>
+        <div class="help">Reports the active tab's domain to Korio via a local-only channel (127.0.0.1). Requires the Korio browser extension.</div></div>
+      <button class="sw" class:on={browser.enabled} role="switch" aria-checked={browser.enabled}
+        aria-label="Track browser sites" onclick={toggleBrowser}><span class="knob"></span></button>
+    </div>
+    {#if browser.enabled}
+      <div class="row">
+        <div class="text"><div class="name">Status</div>
+          <div class="help">{#if browser.connected}● Connected{#if browser.domain} — {browser.domain}{/if}{:else}○ Waiting for extension…{/if}</div></div>
+      </div>
+      <div class="row">
+        <div class="text"><div class="name">Pairing token</div>
+          <div class="help">Paste this into the Korio extension's options page (port {browser.port}).</div></div>
+        <div class="seg">
+          <code class="token-preview">{browser.token.slice(0, 8)}…</code>
+          <button onclick={copyToken}>Copy</button>
+        </div>
+      </div>
+    {/if}
+  {/if}
+
   <div class="label" style="margin-top:28px">Sidebar</div>
   {#each navOptions as n}
     <div class="row">
@@ -217,4 +259,5 @@
   .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
   .pin { width: 90px; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .time { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .token-preview { font-family: monospace; font-size: 13px; color: var(--muted); padding: 6px 8px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 </style>
