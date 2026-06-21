@@ -44,9 +44,35 @@ pub fn add_app(
     exe_name: String,
     kind: String,
     color: String,
+    exe_path: Option<String>,
 ) -> Result<i64, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    queries::add_app(&conn, &display_name, &exe_name, &kind, &color).map_err(|e| e.to_string())
+    queries::add_app(&conn, &display_name, &exe_name, &kind, &color, exe_path.as_deref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn launch_app(state: State<AppState>, id: i64) -> Result<(), String> {
+    let (exe_name, exe_path) = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        queries::app_launch_info(&conn, id).map_err(|e| e.to_string())?
+            .ok_or_else(|| "app not found".to_string())?
+    };
+    // 1) stored path, if it still exists
+    if let Some(p) = exe_path.as_deref() {
+        if std::path::Path::new(p).exists() {
+            return crate::proc::launch_path(p).map_err(|e| e.to_string());
+        }
+    }
+    // 2) resolve from a running process, and persist what we found
+    if let Some(p) = crate::discovery::path_for_exe(&exe_name) {
+        if let Ok(conn) = state.db.lock() {
+            let _ = queries::set_app_path(&conn, id, &p);
+        }
+        return crate::proc::launch_path(&p).map_err(|e| e.to_string());
+    }
+    // 3) shell fallback by name
+    crate::proc::launch_by_name(&exe_name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
