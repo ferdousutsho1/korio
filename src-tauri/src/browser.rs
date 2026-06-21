@@ -10,6 +10,8 @@ fn host_of(raw: &str) -> Option<&str> {
     let after = raw.split_once("://")?.1;
     let host_port = after.split(['/', '?', '#']).next()?;
     let host = host_port.rsplit('@').next()?; // strip optional userinfo
+    // IPv6 literals are bracketed; reject them here rather than trying to strip a port from them.
+    if host.starts_with('[') { return None; }
     let host = host.split(':').next()?; // strip optional port
     if host.is_empty() { None } else { Some(host) }
 }
@@ -20,10 +22,6 @@ pub fn registrable_domain(raw: &str) -> Option<String> {
     let host = host_of(raw)?.to_ascii_lowercase();
     // Reject numeric IPv4 addresses: every label is all digits.
     if host.split('.').all(|label| label.chars().all(|c| c.is_ascii_digit())) {
-        return None;
-    }
-    // Reject IPv6 (bracketed) addresses.
-    if host.starts_with('[') {
         return None;
     }
     // psl returns the registrable domain only for hosts under a real public suffix.
@@ -37,7 +35,8 @@ pub fn ensure_token(conn: &Connection) -> rusqlite::Result<String> {
         if !t.is_empty() { return Ok(t); }
     }
     let mut bytes = [0u8; 16];
-    getrandom::getrandom(&mut bytes).expect("getrandom failed");
+    getrandom::getrandom(&mut bytes)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))))?;
     let token: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
     crate::db::queries::set_setting(conn, "browser_token", &token)?;
     Ok(token)
@@ -91,6 +90,8 @@ mod tests {
         assert_eq!(registrable_domain("about:blank"), None);
         assert_eq!(registrable_domain("not a url"), None);
         assert_eq!(registrable_domain(""), None);
+        assert_eq!(registrable_domain("http://[::1]/"), None);
+        assert_eq!(registrable_domain("http://[2001:db8::1]:8080/x"), None);
     }
 
     #[test]
