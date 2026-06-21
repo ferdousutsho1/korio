@@ -8,12 +8,14 @@
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
   import { ensureNotificationPermission } from "$lib/digest";
+  import { setCaptureShortcut } from "$lib/api";
 
   let dataMsg = $state("");
   let pinSet = $state(false);
   let newPin = $state("");
   let digestEnabled = $state(false);
   let digestTime = $state("18:00");
+  let captureEnabled = $state(true);
 
   async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
   async function removePin() { await clearPin(); pinSet = false; }
@@ -55,8 +57,14 @@
     values = next;
     digestEnabled = s["digest_enabled"] === "true";
     digestTime = s["digest_time"] || "18:00";
+    captureEnabled = s["capture_enabled"] !== "false";
     try { pinSet = await hasPin(); } catch { pinSet = false; }
   });
+
+  async function toggleCapture() {
+    captureEnabled = !captureEnabled;
+    await setCaptureShortcut(captureEnabled); // also persists capture_enabled
+  }
 
   async function toggleDigest() {
     const next = !digestEnabled;
@@ -133,6 +141,14 @@
       <input class="time" type="time" value={digestTime} onchange={onDigestTime} aria-label="Digest time" />
     </div>
   {/if}
+
+  <div class="label" style="margin-top:28px">Quick capture</div>
+  <div class="row">
+    <div class="text"><div class="name">Global hotkey (Ctrl+Alt+K)</div>
+      <div class="help">Press Ctrl+Alt+K anywhere to jot a task or note into Korio.</div></div>
+    <button class="sw" class:on={captureEnabled} role="switch" aria-checked={captureEnabled}
+      aria-label="Global quick-capture" onclick={toggleCapture}><span class="knob"></span></button>
+  </div>
 
   <div class="label" style="margin-top:28px">Sidebar</div>
   {#each navOptions as n}

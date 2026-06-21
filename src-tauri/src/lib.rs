@@ -1,4 +1,5 @@
 pub mod backup;
+pub mod capture;
 pub mod commands;
 pub mod db;
 pub mod export;
@@ -49,6 +50,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == tauri_plugin_global_shortcut::ShortcutState::Pressed {
+                        crate::capture::toggle_capture(app);
+                    }
+                })
+                .build(),
+        )
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None::<Vec<&str>>,
@@ -96,10 +106,16 @@ pub fn run() {
             crate::commands::update_goal,
             crate::commands::delete_goal,
             crate::commands::goals_progress,
+            crate::capture::hide_capture,
+            crate::capture::set_capture_shortcut,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
             setup_main_window(app)?;
+            if read_bool_setting(app.handle(), "capture_enabled", true) {
+                use tauri_plugin_global_shortcut::GlobalShortcutExt;
+                let _ = app.handle().global_shortcut().register(crate::capture::SHORTCUT);
+            }
             crate::tracker::spawn(app.handle().clone());
             Ok(())
         })

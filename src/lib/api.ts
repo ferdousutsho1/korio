@@ -90,3 +90,6 @@ export const addGoal = (g: { scope: Goal["scope"]; scopeRef: string | null; comp
 export const updateGoal = (id: number, comparator: Goal["comparator"], targetSeconds: number) =>
   invoke<void>("update_goal", { id, comparator, targetSeconds });
 export const deleteGoal = (id: number) => invoke<void>("delete_goal", { id });
+
+export const hideCapture = () => invoke<void>("hide_capture");
+export const setCaptureShortcut = (enabled: boolean) => invoke<void>("set_capture_shortcut", { enabled });
