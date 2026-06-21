@@ -20,6 +20,7 @@ use rusqlite::Connection;
 pub struct AppState {
     pub db: Mutex<Connection>,
     pub limits: Mutex<crate::limits::LimitRuntime>,
+    pub browser: Mutex<crate::browser::BrowserRuntime>,
 }
 
 /// Portable mode: korio.db next to the exe if that directory looks writable;
@@ -64,7 +65,11 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None::<Vec<&str>>,
         ))
-        .manage(AppState { db: Mutex::new(conn), limits: Mutex::new(crate::limits::LimitRuntime::new()) })
+        .manage(AppState {
+            db: Mutex::new(conn),
+            limits: Mutex::new(crate::limits::LimitRuntime::new()),
+            browser: Mutex::new(crate::browser::BrowserRuntime::default()),
+        })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_apps,
             crate::commands::add_app,

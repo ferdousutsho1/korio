@@ -3,6 +3,22 @@
 
 use rusqlite::Connection;
 use serde::Deserialize;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+
+/// The domain currently shown in the focused browser, with when it was last reported.
+#[derive(Clone)]
+pub struct ActiveSite {
+    pub domain: String,
+    pub updated_at: i64, // unix seconds
+}
+
+/// Runtime handles for the loopback server. `None` when the feature is off.
+#[derive(Default)]
+pub struct BrowserRuntime {
+    pub active: Option<ActiveSite>,
+    pub stop: Option<Arc<AtomicBool>>,
+}
 
 /// Extract the host portion of a URL string (no scheme, no userinfo, no port, no path).
 /// Returns None if there is no `scheme://host` shape.
