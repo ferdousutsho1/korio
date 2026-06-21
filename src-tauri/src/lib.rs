@@ -115,6 +115,8 @@ pub fn run() {
             crate::commands::goals_progress,
             crate::capture::hide_capture,
             crate::capture::set_capture_shortcut,
+            crate::browser::browser_status,
+            crate::browser::set_browser_enabled,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
@@ -124,6 +126,9 @@ pub fn run() {
                 let _ = app.handle().global_shortcut().register(crate::capture::SHORTCUT);
             }
             crate::tracker::spawn(app.handle().clone());
+            if read_bool_setting(app.handle(), "browser_enabled", false) {
+                crate::browser::start(app.handle().clone());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

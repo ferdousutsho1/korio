@@ -2,7 +2,7 @@
 //! Reduces reported URLs to registrable domains; never stores full URLs.
 
 use rusqlite::Connection;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -191,6 +191,49 @@ pub fn stop(app: &AppHandle) {
     };
     if let Some(flag) = rt.stop.take() { flag.store(true, Ordering::Relaxed); }
     rt.active = None;
+}
+
+#[derive(Serialize)]
+pub struct BrowserStatus {
+    pub enabled: bool,
+    pub port: u16,
+    pub token: String,
+    pub connected: bool,
+    pub last_seen_secs: Option<i64>,
+    pub domain: Option<String>,
+}
+
+#[tauri::command]
+pub fn browser_status(app: AppHandle) -> Result<BrowserStatus, String> {
+    let state = app.state::<AppState>();
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let enabled = crate::db::queries::get_setting(&conn, "browser_enabled")
+        .map_err(|e| e.to_string())?.as_deref() == Some("true");
+    let port = crate::db::queries::get_setting(&conn, "browser_port").ok().flatten()
+        .and_then(|s| s.parse().ok()).unwrap_or(7878);
+    let token = ensure_token(&conn).map_err(|e| e.to_string())?;
+    drop(conn);
+    let (last_seen_secs, domain) = {
+        let rt = state.browser.lock().map_err(|e| e.to_string())?;
+        match &rt.active {
+            Some(a) => (Some(chrono::Utc::now().timestamp() - a.updated_at), Some(a.domain.clone())),
+            None => (None, None),
+        }
+    };
+    let connected = last_seen_secs.map(|s| s <= 15).unwrap_or(false);
+    Ok(BrowserStatus { enabled, port, token, connected, last_seen_secs, domain })
+}
+
+#[tauri::command]
+pub fn set_browser_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
+    {
+        let state = app.state::<AppState>();
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        crate::db::queries::set_setting(&conn, "browser_enabled", if enabled { "true" } else { "false" })
+            .map_err(|e| e.to_string())?;
+    }
+    if enabled { start(app); } else { stop(&app); }
+    Ok(())
 }
 
 #[cfg(test)]
