@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { listApps, runningApps, addApp, removeApp, setAppLimit, colorFor,
+  import { listApps, runningApps, addApp, removeApp, setAppLimit, launchApp, colorFor,
     type App, type RunningApp } from "$lib/api";
 
   let apps = $state<App[]>([]);
@@ -20,7 +20,7 @@
     const name = r.title.length > 40 ? r.exe_name.replace(/\.exe$/i, "") : r.title;
     await addApp({
       display_name: name, exe_name: r.exe_name, kind: "neutral",
-      color: colorFor(apps.length),
+      color: colorFor(apps.length), exe_path: r.path || null,
     });
     picking = false;
     await refresh();
@@ -31,7 +31,7 @@
     if (typeof path !== "string") return;
     const file = path.replace(/^.*[\\/]/, "");   // "Code.exe"
     const name = file.replace(/\.exe$/i, "");      // "Code"
-    await addApp({ display_name: name, exe_name: file, kind: "neutral", color: colorFor(apps.length) });
+    await addApp({ display_name: name, exe_name: file, kind: "neutral", color: colorFor(apps.length), exe_path: path });
     await refresh();
   }
 
@@ -65,6 +65,8 @@
           <span class="dot" style={`background:${a.color}`}></span>
           <span class="name">{a.display_name}</span>
           <span class="exe">{a.exe_name}</span>
+          <button class="launch" onclick={() => launchApp(a.id)}
+            title="Launch {a.display_name}" aria-label="Launch {a.display_name}">▷</button>
           <span class="limit">
             <input class="cap" type="number" min="0" step="5" value={Math.round(a.daily_cap_seconds / 60)}
               title="Daily limit (minutes, 0 = off)" aria-label={`Daily limit minutes for ${a.display_name}`}
@@ -116,7 +118,10 @@
   .exe { color: var(--muted); font-size: 12px; }
   .x { border: none; background: transparent; color: var(--muted);
     font-size: 20px; cursor: pointer; line-height: 1; }
-  .limit { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+  .launch { margin-left: auto; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+    width: 30px; height: 28px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; line-height: 1; }
+  .launch:hover { border-color: var(--accent); color: var(--accent); }
+  .limit { display: flex; align-items: center; gap: 6px; }
   .cap { width: 52px; font: inherit; font-size: 12px; padding: 4px 6px; text-align: right;
     border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .unit { color: var(--muted); font-size: 11px; }

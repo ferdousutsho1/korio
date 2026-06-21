@@ -6,7 +6,7 @@ export interface App {
   id: number; display_name: string; exe_name: string; kind: string; color: string;
   daily_cap_seconds: number; limit_action: string;
 }
-export interface RunningApp { exe_name: string; title: string; }
+export interface RunningApp { exe_name: string; title: string; path: string; }
 export interface UsageSlice {
   app_id: number; display_name: string; color: string; kind: string; seconds: number;
 }
@@ -21,8 +21,9 @@ export const runningApps = () => invoke<RunningApp[]>("running_apps");
 export const removeApp = (id: number) => invoke<void>("remove_app", { id });
 export const usageToday = () => invoke<UsageSlice[]>("usage_today");
 export const scoreToday = () => invoke<number>("score_today");
-export const addApp = (a: { display_name: string; exe_name: string; kind: string; color: string }) =>
-  invoke<number>("add_app", { displayName: a.display_name, exeName: a.exe_name, kind: a.kind, color: a.color });
+export const addApp = (a: { display_name: string; exe_name: string; kind: string; color: string; exe_path?: string | null }) =>
+  invoke<number>("add_app", { displayName: a.display_name, exeName: a.exe_name, kind: a.kind, color: a.color, exePath: a.exe_path ?? null });
+export const launchApp = (id: number) => invoke<void>("launch_app", { id });
 
 export const usageRange = (from: number, to: number) =>
   invoke<UsageSlice[]>("usage_range", { from, to });
