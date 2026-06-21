@@ -10,6 +10,7 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "dialog:allow-save",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "core:event:default"
   ]
 }

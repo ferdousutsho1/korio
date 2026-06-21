@@ -9,6 +9,7 @@ pub mod proc;
 pub mod score;
 pub mod stats;
 pub mod tracker;
+pub mod widgets;
 
 use std::sync::Mutex;
 use rusqlite::Connection;
@@ -84,6 +85,10 @@ pub fn run() {
             crate::commands::add_note,
             crate::commands::update_note,
             crate::commands::delete_note,
+            crate::widgets::open_widget,
+            crate::widgets::close_widget,
+            crate::widgets::set_widget_always_on_top,
+            crate::widgets::save_widget_bounds,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
