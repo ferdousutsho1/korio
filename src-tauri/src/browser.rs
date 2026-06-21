@@ -90,6 +90,8 @@ pub fn evaluate_active(expected_token: &str, body: &str) -> ActiveOutcome {
 
 const DEFAULT_PORT: u16 = 7878;
 
+// Wildcard CORS is intentional: the extension's origin differs per browser vendor.
+// The shared token (checked in evaluate_active) is the actual access guard, not Origin.
 fn cors(resp: tiny_http::Response<std::io::Empty>) -> tiny_http::Response<std::io::Empty> {
     use tiny_http::Header;
     resp.with_header(Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap())
@@ -107,28 +109,34 @@ fn port_of(app: &AppHandle) -> u16 {
 
 /// Start the loopback server on a background thread if not already running.
 pub fn start(app: AppHandle) {
+    let stop = Arc::new(AtomicBool::new(false));
     {
         let state = app.state::<AppState>();
-        let mut rt = state.browser.lock().unwrap();
+        let mut rt = match state.browser.lock() { Ok(g) => g, Err(_) => return };
         if rt.stop.is_some() { return; } // already running
-        rt.stop = Some(Arc::new(AtomicBool::new(false)));
+        rt.stop = Some(stop.clone());
     }
-    let stop = {
-        let state = app.state::<AppState>();
-        let guard = state.browser.lock().unwrap();
-        guard.stop.clone().unwrap()
-    };
     let port = port_of(&app);
 
     std::thread::spawn(move || {
         let server = match tiny_http::Server::http(("127.0.0.1", port)) {
             Ok(s) => s,
-            Err(e) => { eprintln!("browser server bind failed: {e}"); return; }
+            Err(e) => {
+                eprintln!("browser server bind failed: {e}");
+                // Self-heal: clear the stop handle so a later start() can retry
+                // instead of being permanently short-circuited by the is_some() guard.
+                let state = app.state::<AppState>();
+                if let Ok(mut rt) = state.browser.lock() { rt.stop = None; }
+                return;
+            }
         };
         let token = {
             let state = app.state::<AppState>();
-            let conn = state.db.lock().unwrap();
-            ensure_token(&conn).unwrap_or_default()
+            let conn = match state.db.lock() { Ok(c) => c, Err(_) => return };
+            match ensure_token(&conn) {
+                Ok(t) => t,
+                Err(e) => { eprintln!("browser: failed to load token: {e}"); return; }
+            }
         };
 
         while !stop.load(Ordering::Relaxed) {
@@ -210,7 +218,7 @@ pub fn browser_status(app: AppHandle) -> Result<BrowserStatus, String> {
     let enabled = crate::db::queries::get_setting(&conn, "browser_enabled")
         .map_err(|e| e.to_string())?.as_deref() == Some("true");
     let port = crate::db::queries::get_setting(&conn, "browser_port").ok().flatten()
-        .and_then(|s| s.parse().ok()).unwrap_or(7878);
+        .and_then(|s| s.parse().ok()).unwrap_or(DEFAULT_PORT);
     let token = ensure_token(&conn).map_err(|e| e.to_string())?;
     drop(conn);
     let (last_seen_secs, domain) = {
