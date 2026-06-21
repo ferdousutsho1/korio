@@ -3,6 +3,7 @@ pub mod commands;
 pub mod db;
 pub mod export;
 pub mod discovery;
+pub mod goals;
 pub mod limits;
 pub mod lock;
 pub mod proc;
@@ -89,6 +90,11 @@ pub fn run() {
             crate::widgets::close_widget,
             crate::widgets::set_widget_always_on_top,
             crate::widgets::save_widget_bounds,
+            crate::commands::list_goals,
+            crate::commands::add_goal,
+            crate::commands::update_goal,
+            crate::commands::delete_goal,
+            crate::commands::goals_progress,
         ])
         .setup(|app| {
             build_tray(app.handle())?;

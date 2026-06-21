@@ -1,4 +1,4 @@
-use crate::db::queries::{self, App, Note, SessionRow, Task, UsageSlice};
+use crate::db::queries::{self, App, Goal, GoalSession, Note, SessionRow, Task, UsageSlice};
 use crate::discovery::{self, RunningApp};
 use crate::stats::{self, DayTotal};
 use crate::AppState;
@@ -260,4 +260,100 @@ pub fn update_note(
 pub fn delete_note(state: State<AppState>, id: i64) -> Result<(), String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     queries::delete_note(&conn, id).map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+pub struct GoalProgress {
+    pub goal: Goal,
+    pub today_seconds: i64,
+    pub met_today: bool,
+    pub current_streak: i64,
+    pub best_streak: i64,
+}
+
+const GOAL_LOOKBACK_DAYS: i64 = 365;
+
+/// Per-local-day seconds for a goal, oldest→newest with the last element = today.
+/// Days run from the goal's creation day (clamped to the lookback window) through today,
+/// zero-filled for inactive days so streaks see gaps.
+fn build_daily(sessions: &[GoalSession], g: &Goal, today_start: i64) -> Vec<i64> {
+    use std::collections::BTreeMap;
+    let mut map: BTreeMap<i64, i64> = BTreeMap::new();
+    for s in sessions {
+        let matches = match g.scope.as_str() {
+            "app" => g.scope_ref.as_deref() == Some(s.app_id.to_string().as_str()),
+            "kind" => g.scope_ref.as_deref() == Some(s.kind.as_str()),
+            _ => true, // total
+        };
+        if matches {
+            *map.entry(local_day_start(s.started_at)).or_insert(0) += s.active_seconds;
+        }
+    }
+    let earliest = local_day_start(today_start - GOAL_LOOKBACK_DAYS * 86_400);
+    let start = local_day_start(g.created_at).max(earliest);
+    let mut days: Vec<i64> = Vec::new();
+    let mut cur = start;
+    while cur <= today_start {
+        days.push(cur);
+        // +25h then snap to local midnight → robustly advances exactly one calendar day across DST
+        cur = local_day_start(cur + 86_400 + 3_600);
+    }
+    days.iter().map(|d| *map.get(d).unwrap_or(&0)).collect()
+}
+
+#[tauri::command]
+pub fn list_goals(state: State<AppState>) -> Result<Vec<Goal>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_goals(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_goal(
+    state: State<AppState>, scope: String, scope_ref: Option<String>, comparator: String, target_seconds: i64,
+) -> Result<i64, String> {
+    if !matches!(scope.as_str(), "kind" | "app" | "total") { return Err("bad scope".into()); }
+    if !matches!(comparator.as_str(), "gte" | "lte") { return Err("bad comparator".into()); }
+    if target_seconds <= 0 { return Err("target must be positive".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::add_goal(&conn, &scope, scope_ref.as_deref(), &comparator, target_seconds).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_goal(
+    state: State<AppState>, id: i64, comparator: String, target_seconds: i64,
+) -> Result<(), String> {
+    if !matches!(comparator.as_str(), "gte" | "lte") { return Err("bad comparator".into()); }
+    if target_seconds <= 0 { return Err("target must be positive".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::update_goal(&conn, id, &comparator, target_seconds).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_goal(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::delete_goal(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn goals_progress(state: State<AppState>) -> Result<Vec<GoalProgress>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let goals = queries::list_goals(&conn).map_err(|e| e.to_string())?;
+    let (today_start, today_end) = day_bounds_local();
+    let from = today_start - GOAL_LOOKBACK_DAYS * 86_400;
+    let sessions = queries::goal_sessions(&conn, from, today_end).map_err(|e| e.to_string())?;
+    let mut out = Vec::with_capacity(goals.len());
+    for g in goals {
+        let daily = build_daily(&sessions, &g, today_start);
+        let gte = g.comparator == "gte";
+        let s = crate::goals::streaks(&daily, g.target_seconds, gte);
+        let today_seconds = *daily.last().unwrap_or(&0);
+        out.push(GoalProgress {
+            today_seconds,
+            met_today: crate::goals::met(today_seconds, g.target_seconds, gte),
+            current_streak: s.current,
+            best_streak: s.best,
+            goal: g,
+        });
+    }
+    Ok(out)
 }

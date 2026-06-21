@@ -73,6 +73,14 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS goals (
+            id             INTEGER PRIMARY KEY,
+            scope          TEXT NOT NULL CHECK (scope IN ('kind','app','total')),
+            scope_ref      TEXT,
+            comparator     TEXT NOT NULL CHECK (comparator IN ('gte','lte')),
+            target_seconds INTEGER NOT NULL,
+            created_at     INTEGER NOT NULL
+        );
         "#,
     )?;
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;

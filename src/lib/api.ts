@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import type { Goal, GoalProgress } from "$lib/goals";
+export type { Goal, GoalProgress } from "$lib/goals";
 
 export interface App {
   id: number; display_name: string; exe_name: string; kind: string; color: string;
@@ -80,3 +82,11 @@ export const setWidgetAlwaysOnTop = (kind: WidgetKind, on: boolean) =>
   invoke<void>("set_widget_always_on_top", { kind, on });
 export const saveWidgetBounds = (kind: WidgetKind, x: number, y: number, w: number, h: number) =>
   invoke<void>("save_widget_bounds", { kind, x, y, w, h });
+
+export const listGoals = () => invoke<Goal[]>("list_goals");
+export const goalsProgress = () => invoke<GoalProgress[]>("goals_progress");
+export const addGoal = (g: { scope: Goal["scope"]; scopeRef: string | null; comparator: Goal["comparator"]; targetSeconds: number }) =>
+  invoke<number>("add_goal", { scope: g.scope, scopeRef: g.scopeRef, comparator: g.comparator, targetSeconds: g.targetSeconds });
+export const updateGoal = (id: number, comparator: Goal["comparator"], targetSeconds: number) =>
+  invoke<void>("update_goal", { id, comparator, targetSeconds });
+export const deleteGoal = (id: number) => invoke<void>("delete_goal", { id });
