@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store";
 import { browser } from "$app/environment";
+import { isMainWindow } from "$lib/sync";
 
 /** A monotonically-updating clock (ms since epoch), ticked ~every 50ms while the app is open. */
 export const nowMs = writable<number>(browser ? Date.now() : 0);
@@ -54,6 +55,7 @@ if (browser) {
   setInterval(() => {
     const now = Date.now();
     nowMs.set(now);
+    if (!isMainWindow()) return;
     const t = get(timer);
     if (t.running && now >= t.endsAt) {
       timer.set({ ...t, running: false, remaining: 0, done: true });

@@ -1,5 +1,6 @@
 import { writable, get } from "svelte/store";
 import { browser } from "$app/environment";
+import { isMainWindow } from "$lib/sync";
 
 export type Phase = "focus" | "short" | "long";
 export interface PomodoroConfig { focusMin: number; shortMin: number; longMin: number; longEvery: number; }
@@ -106,6 +107,7 @@ function advance() {
 // ticker owns the completion transition; components never write the store
 if (browser) {
   setInterval(() => {
+    if (!isMainWindow()) return;
     const s = get(pomodoro);
     if (s.running && Date.now() >= s.endsAt) advance();
   }, 250);
