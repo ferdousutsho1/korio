@@ -7,6 +7,7 @@
   import Tools from "$lib/components/Tools.svelte";
   import Tasks from "$lib/components/Tasks.svelte";
   import Notes from "$lib/components/Notes.svelte";
+  import Goals from "$lib/components/Goals.svelte";
   import LimitWarning from "$lib/components/LimitWarning.svelte";
   import LockScreen from "$lib/components/LockScreen.svelte";
   import { theme, toggleTheme } from "$lib/theme";
@@ -24,7 +25,7 @@
   <Sidebar {active} onNavigate={(id) => (active = id)} />
   <section class="content">
     <header class="topbar">
-      <h1>{active === "dashboard" ? "Dashboard" : active === "stats" ? "Stats" : active === "tools" ? "Tools" : active === "tasks" ? "Tasks" : active === "notes" ? "Notes" : active === "settings" ? "Settings" : "Watchlist"}</h1>
+      <h1>{active === "dashboard" ? "Dashboard" : active === "stats" ? "Stats" : active === "tools" ? "Tools" : active === "tasks" ? "Tasks" : active === "notes" ? "Notes" : active === "goals" ? "Goals" : active === "settings" ? "Settings" : "Watchlist"}</h1>
       <button class="theme" aria-label={$theme === "light" ? "Switch to dark theme" : "Switch to light theme"} onclick={toggleTheme}>{$theme === "light" ? "☾" : "☀"}</button>
     </header>
     <div class="view">
@@ -38,6 +39,8 @@
         <Tasks />
       {:else if active === "notes"}
         <Notes />
+      {:else if active === "goals"}
+        <Goals />
       {:else if active === "settings"}
         <Settings />
       {:else}
