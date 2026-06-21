@@ -68,6 +68,7 @@ pub fn run() {
             crate::commands::list_apps,
             crate::commands::add_app,
             crate::commands::remove_app,
+            crate::commands::launch_app,
             crate::commands::running_apps,
             crate::commands::usage_today,
             crate::commands::score_today,

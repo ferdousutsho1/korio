@@ -56,19 +56,36 @@ pub fn export_rows(conn: &Connection) -> rusqlite::Result<Vec<ExportRow>> {
 }
 
 /// Insert a watchlist app (idempotent on exe_name). Returns the row id.
-pub fn add_app(conn: &Connection, display_name: &str, exe_name: &str, kind: &str, color: &str)
+pub fn add_app(conn: &Connection, display_name: &str, exe_name: &str, kind: &str, color: &str, exe_path: Option<&str>)
     -> rusqlite::Result<i64> {
     conn.execute(
-        "INSERT INTO apps (display_name, exe_name, kind, color, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)
-         ON CONFLICT(exe_name) DO UPDATE SET display_name = excluded.display_name",
-        rusqlite::params![display_name, exe_name, kind, color, now()],
+        "INSERT INTO apps (display_name, exe_name, kind, color, exe_path, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(exe_name) DO UPDATE SET
+             display_name = excluded.display_name,
+             exe_path = COALESCE(excluded.exe_path, apps.exe_path)",
+        rusqlite::params![display_name, exe_name, kind, color, exe_path, now()],
     )?;
     conn.query_row(
         "SELECT id FROM apps WHERE exe_name = ?1",
         [exe_name],
         |r| r.get(0),
     )
+}
+
+/// (exe_name, exe_path) for launching, or None if the app id is unknown.
+pub fn app_launch_info(conn: &Connection, id: i64) -> rusqlite::Result<Option<(String, Option<String>)>> {
+    use rusqlite::OptionalExtension;
+    conn.query_row(
+        "SELECT exe_name, exe_path FROM apps WHERE id = ?1",
+        [id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ).optional()
+}
+
+pub fn set_app_path(conn: &Connection, id: i64, path: &str) -> rusqlite::Result<()> {
+    conn.execute("UPDATE apps SET exe_path = ?2 WHERE id = ?1", rusqlite::params![id, path])?;
+    Ok(())
 }
 
 pub fn remove_app(conn: &Connection, id: i64) -> rusqlite::Result<()> {
@@ -372,8 +389,8 @@ mod tests {
     #[test]
     fn add_app_is_idempotent_on_exe() {
         let c = open_in_memory().unwrap();
-        let id1 = add_app(&c, "Visual Studio Code", "code.exe", "productive", "#C2410C").unwrap();
-        let id2 = add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        let id1 = add_app(&c, "Visual Studio Code", "code.exe", "productive", "#C2410C", None).unwrap();
+        let id2 = add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         assert_eq!(id1, id2);
         assert_eq!(list_apps(&c).unwrap().len(), 1);
         assert_eq!(list_apps(&c).unwrap()[0].display_name, "VS Code");
@@ -382,7 +399,7 @@ mod tests {
     #[test]
     fn usage_between_sums_active_seconds_in_window() {
         let c = open_in_memory().unwrap();
-        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         insert_session(&c, "code.exe", 1000, 1100, 90).unwrap();
         insert_session(&c, "code.exe", 1200, 1300, 60).unwrap();
         insert_session(&c, "code.exe", 5000, 5100, 999).unwrap(); // outside window
@@ -394,14 +411,14 @@ mod tests {
     #[test]
     fn watched_exes_are_lowercased() {
         let c = open_in_memory().unwrap();
-        add_app(&c, "Chrome", "Chrome.EXE", "distracting", "#B8A98C").unwrap();
+        add_app(&c, "Chrome", "Chrome.EXE", "distracting", "#B8A98C", None).unwrap();
         assert_eq!(watched_exes(&c).unwrap(), vec!["chrome.exe".to_string()]);
     }
 
     #[test]
     fn removing_an_app_cascades_to_its_sessions() {
         let c = open_in_memory().unwrap();
-        let id = add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        let id = add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         insert_session(&c, "code.exe", 1000, 1100, 90).unwrap();
         remove_app(&c, id).unwrap();
         // With PRAGMA foreign_keys = ON, the ON DELETE CASCADE must remove sessions too.
@@ -414,7 +431,7 @@ mod tests {
     #[test]
     fn sessions_between_returns_rows_in_window_oldest_first() {
         let c = open_in_memory().unwrap();
-        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         insert_session(&c, "code.exe", 1200, 1260, 60).unwrap();
         insert_session(&c, "code.exe", 1000, 1100, 90).unwrap();
         insert_session(&c, "code.exe", 5000, 5100, 10).unwrap(); // outside
@@ -428,18 +445,18 @@ mod tests {
     #[test]
     fn set_app_limit_and_app_limits_roundtrip() {
         let c = open_in_memory().unwrap();
-        let id = add_app(&c, "YouTube", "chrome.exe", "distracting", "#B23A48").unwrap();
+        let id = add_app(&c, "YouTube", "chrome.exe", "distracting", "#B23A48", None).unwrap();
         set_app_limit(&c, id, 1800, "close").unwrap();
         let limits = app_limits(&c).unwrap();
         assert_eq!(limits, vec![("chrome.exe".to_string(), 1800, "close".to_string())]);
-        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         assert_eq!(app_limits(&c).unwrap().len(), 1); // no-cap app excluded
     }
 
     #[test]
     fn app_seconds_between_sums_one_exe() {
         let c = open_in_memory().unwrap();
-        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
         insert_session(&c, "code.exe", 1000, 1100, 100).unwrap();
         insert_session(&c, "code.exe", 1200, 1300, 50).unwrap();
         assert_eq!(app_seconds_between(&c, "CODE.EXE", 0, 2000).unwrap(), 150);
@@ -459,8 +476,8 @@ mod tests {
     #[test]
     fn total_seconds_between_sums_all_apps() {
         let c = open_in_memory().unwrap();
-        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C").unwrap();
-        add_app(&c, "Chrome", "chrome.exe", "distracting", "#B23A48").unwrap();
+        add_app(&c, "VS Code", "code.exe", "productive", "#C2410C", None).unwrap();
+        add_app(&c, "Chrome", "chrome.exe", "distracting", "#B23A48", None).unwrap();
         insert_session(&c, "code.exe", 1000, 1100, 100).unwrap();
         insert_session(&c, "chrome.exe", 1200, 1300, 50).unwrap();
         insert_session(&c, "code.exe", 9000, 9100, 999).unwrap(); // outside

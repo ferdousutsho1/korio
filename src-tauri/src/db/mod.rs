@@ -85,6 +85,7 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     )?;
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;
     add_column_if_missing(conn, "apps", "limit_action", "TEXT NOT NULL DEFAULT 'warn'")?;
+    add_column_if_missing(conn, "apps", "exe_path", "TEXT")?;
     Ok(())
 }
 
