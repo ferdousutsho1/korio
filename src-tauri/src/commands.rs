@@ -1,4 +1,4 @@
-use crate::db::queries::{self, App, Goal, GoalSession, Note, SessionRow, Task, UsageSlice};
+use crate::db::queries::{self, App, Category, CategoryUsage, Goal, GoalSession, Note, SessionRow, Task, UsageSlice};
 use crate::discovery::{self, RunningApp};
 use crate::stats::{self, DayTotal};
 use crate::AppState;
@@ -452,4 +452,44 @@ pub fn goals_progress(state: State<AppState>) -> Result<Vec<GoalProgress>, Strin
         });
     }
     Ok(out)
+}
+
+#[tauri::command]
+pub fn list_categories(state: State<AppState>) -> Result<Vec<Category>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_categories(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn add_category(state: State<AppState>, name: String, color: String, nature: String) -> Result<i64, String> {
+    let n = name.trim();
+    if n.is_empty() { return Err("empty name".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::add_category(&conn, n, &color, &nature).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_category(state: State<AppState>, id: i64, name: String, color: String, nature: String) -> Result<(), String> {
+    let n = name.trim();
+    if n.is_empty() { return Err("empty name".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::update_category(&conn, id, n, &color, &nature).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_category(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::delete_category(&conn, id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_app_category(state: State<AppState>, id: i64, category_id: Option<i64>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_app_category(&conn, id, category_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn usage_by_category(state: State<AppState>, from: i64, to: i64) -> Result<Vec<CategoryUsage>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::usage_by_category(&conn, from, to).map_err(|e| e.to_string())
 }

@@ -4,7 +4,7 @@ export type { Goal, GoalProgress } from "$lib/goals";
 
 export interface App {
   id: number; display_name: string; exe_name: string; kind: string; color: string;
-  daily_cap_seconds: number; limit_action: string;
+  daily_cap_seconds: number; limit_action: string; category_id: number | null;
 }
 export interface RunningApp { exe_name: string; title: string; path: string; }
 export interface UsageSlice {
@@ -17,6 +17,20 @@ export interface SessionRow {
 export interface DayTotal { day: number; seconds: number; }
 
 export const listApps = () => invoke<App[]>("list_apps");
+
+export interface Category { id: number; name: string; color: string; nature: string; created_at: number; }
+export interface CategoryUsage { category_id: number | null; name: string; color: string; nature: string; seconds: number; }
+
+export const listCategories = () => invoke<Category[]>("list_categories");
+export const addCategory = (name: string, color: string, nature: string) =>
+  invoke<number>("add_category", { name, color, nature });
+export const updateCategory = (id: number, name: string, color: string, nature: string) =>
+  invoke<void>("update_category", { id, name, color, nature });
+export const deleteCategory = (id: number) => invoke<void>("delete_category", { id });
+export const setAppCategory = (id: number, categoryId: number | null) =>
+  invoke<void>("set_app_category", { id, categoryId });
+export const usageByCategory = (from: number, to: number) =>
+  invoke<CategoryUsage[]>("usage_by_category", { from, to });
 export const runningApps = () => invoke<RunningApp[]>("running_apps");
 export const removeApp = (id: number) => invoke<void>("remove_app", { id });
 export const usageToday = () => invoke<UsageSlice[]>("usage_today");

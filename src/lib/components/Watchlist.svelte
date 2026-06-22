@@ -2,14 +2,53 @@
   import { onMount } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { listApps, runningApps, addApp, removeApp, setAppLimit, launchApp, colorFor,
-    type App, type RunningApp } from "$lib/api";
+    listCategories, addCategory, updateCategory, deleteCategory, setAppCategory,
+    type App, type RunningApp, type Category } from "$lib/api";
 
   let apps = $state<App[]>([]);
   let running = $state<RunningApp[]>([]);
   let picking = $state(false);
+  let categories = $state<Category[]>([]);
+  let managing = $state(false);
 
   async function refresh() { apps = await listApps(); }
-  onMount(refresh);
+  async function refreshCats() { categories = await listCategories(); }
+  onMount(async () => { await refresh(); await refreshCats(); });
+
+  async function assignCategory(a: App, value: string) {
+    const id = value === "" ? null : Number(value);
+    try { await setAppCategory(a.id, id); }
+    catch (e) { console.error("setAppCategory failed", e); }
+    await refresh();
+  }
+
+  let newName = $state("");
+  let newColor = $state("#3A6EA5");
+  let newNature = $state("neutral");
+  let catErr = $state("");
+
+  function friendlyCatErr(e: unknown): string {
+    const s = String(e);
+    return s.includes("UNIQUE") ? "A category with that name already exists." : s;
+  }
+
+  async function createCat() {
+    const n = newName.trim();
+    if (!n) return;
+    try { await addCategory(n, newColor, newNature); catErr = ""; newName = ""; await refreshCats(); }
+    catch (e) { catErr = friendlyCatErr(e); }
+  }
+
+  async function saveCat(c: Category, patch: Partial<Category>) {
+    const next = { ...c, ...patch };
+    try { await updateCategory(c.id, next.name.trim() || c.name, next.color, next.nature); catErr = ""; await refreshCats(); await refresh(); }
+    catch (e) { catErr = friendlyCatErr(e); }
+  }
+
+  async function dropCat(c: Category) {
+    try { await deleteCategory(c.id); catErr = ""; await refreshCats(); await refresh(); }
+    catch (e) { catErr = friendlyCatErr(e); }
+  }
 
   async function openPicker() {
     running = await runningApps();
@@ -53,6 +92,7 @@
     <div class="addbtns">
       <button class="add" onclick={openPicker}>+ Add app</button>
       <button class="add ghost" onclick={browseForExe}>Browse for .exe</button>
+      <button class="add ghost" onclick={() => (managing = true)}>Manage categories</button>
     </div>
   </div>
 
@@ -69,6 +109,12 @@
           </span>
           <button class="launch" onclick={() => launchApp(a.id)}
             title="Launch {a.display_name}" aria-label="Launch {a.display_name}">▷</button>
+          <select class="cat" aria-label={`Category for ${a.display_name}`}
+            value={a.category_id == null ? "" : String(a.category_id)}
+            onchange={(e) => assignCategory(a, e.currentTarget.value)}>
+            <option value="">Uncategorized</option>
+            {#each categories as c (c.id)}<option value={String(c.id)}>{c.name}</option>{/each}
+          </select>
           <span class="limit">
             <input class="cap" type="number" min="0" step="5" value={Math.round(a.daily_cap_seconds / 60)}
               title="Daily limit (minutes, 0 = off)" aria-label={`Daily limit minutes for ${a.display_name}`}
@@ -99,6 +145,45 @@
           </button>
         {/each}
       </ul>
+    </div>
+  </div>
+{/if}
+
+{#if managing}
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cat-modal-title" tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) managing = false; }}
+    onkeydown={(e) => { if (e.key === "Escape") managing = false; }}>
+    <div class="sheet">
+      <h3 id="cat-modal-title">Categories</h3>
+      {#if catErr}<p class="err">{catErr}</p>{/if}
+      <ul class="cats">
+        {#each categories as c (c.id)}
+          <li>
+            <input class="cname" value={c.name} aria-label="Category name"
+              onchange={(e) => saveCat(c, { name: e.currentTarget.value })} />
+            <input class="cclr" type="color" value={c.color} aria-label="Category color"
+              onchange={(e) => saveCat(c, { color: e.currentTarget.value })} />
+            <select class="cnat" value={c.nature} aria-label="Category nature"
+              onchange={(e) => saveCat(c, { nature: e.currentTarget.value })}>
+              <option value="productive">Productive</option>
+              <option value="neutral">Neutral</option>
+              <option value="distracting">Distracting</option>
+            </select>
+            <button class="x" onclick={() => dropCat(c)} aria-label={`Delete ${c.name}`}>×</button>
+          </li>
+        {/each}
+      </ul>
+      <div class="newcat">
+        <input class="cname" bind:value={newName} placeholder="New category…" aria-label="New category name" />
+        <input class="cclr" type="color" bind:value={newColor} aria-label="New category color" />
+        <select class="cnat" bind:value={newNature} aria-label="New category nature">
+          <option value="productive">Productive</option>
+          <option value="neutral">Neutral</option>
+          <option value="distracting">Distracting</option>
+        </select>
+        <button class="add" onclick={createCat}>Add</button>
+      </div>
+      <button class="add ghost done" onclick={() => (managing = false)}>Done</button>
     </div>
   </div>
 {/if}
@@ -144,4 +229,16 @@
   .run button:hover { border-color: var(--line); background: var(--bg); }
   .rexe { font-weight: 600; font-size: 13px; }
   .rtitle { color: var(--muted); font-size: 12px; }
+  .cat { font: inherit; font-size: 12px; max-width: 130px; flex-shrink: 0; padding: 4px 6px;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .cats { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; }
+  .cats li, .newcat { display: flex; align-items: center; gap: 8px; }
+  .cname { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 8px;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .cclr { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); }
+  .cnat { font: inherit; font-size: 12px; padding: 5px 6px; border: 1px solid var(--line);
+    border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
+  .newcat { margin-bottom: 14px; }
+  .err { color: var(--note-overdue); font-size: 12px; margin: 0 0 10px; }
+  .done { margin-top: 4px; }
 </style>

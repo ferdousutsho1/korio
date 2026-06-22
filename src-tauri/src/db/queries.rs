@@ -10,6 +10,7 @@ pub struct App {
     pub color: String,
     pub daily_cap_seconds: i64,
     pub limit_action: String,
+    pub category_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -95,13 +96,14 @@ pub fn remove_app(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 
 pub fn list_apps(conn: &Connection) -> rusqlite::Result<Vec<App>> {
     let mut stmt = conn.prepare(
-        "SELECT id, display_name, exe_name, kind, color, daily_cap_seconds, limit_action
+        "SELECT id, display_name, exe_name, kind, color, daily_cap_seconds, limit_action, category_id
          FROM apps ORDER BY display_name COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], |r| Ok(App {
         id: r.get(0)?, display_name: r.get(1)?, exe_name: r.get(2)?,
         kind: r.get(3)?, color: r.get(4)?,
         daily_cap_seconds: r.get(5)?, limit_action: r.get(6)?,
+        category_id: r.get(7)?,
     }))?;
     rows.collect()
 }
@@ -359,6 +361,105 @@ pub fn clear_done_tasks(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 fn now() -> i64 { chrono::Utc::now().timestamp() }
+
+#[derive(Debug, Serialize, Clone)]
+pub struct Category {
+    pub id: i64,
+    pub name: String,
+    pub color: String,
+    pub nature: String,
+    pub created_at: i64,
+}
+
+/// One row of time-by-category. `category_id` is `None` for the Uncategorized bucket;
+/// `name`/`color`/`nature` are always materialized (COALESCE fallbacks in the query).
+#[derive(Debug, Serialize, Clone)]
+pub struct CategoryUsage {
+    pub category_id: Option<i64>,
+    pub name: String,
+    pub color: String,
+    pub nature: String,
+    pub seconds: i64,
+}
+
+pub fn list_categories(conn: &Connection) -> rusqlite::Result<Vec<Category>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, name, color, nature, created_at FROM categories ORDER BY name COLLATE NOCASE",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Category {
+        id: r.get(0)?, name: r.get(1)?, color: r.get(2)?, nature: r.get(3)?, created_at: r.get(4)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn add_category(conn: &Connection, name: &str, color: &str, nature: &str) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO categories (name, color, nature, created_at) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![name, color, nature, now()],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// Update a category and re-sync the mirrored `kind` on all of its member apps.
+pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str, nature: &str) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "UPDATE categories SET name = ?2, color = ?3, nature = ?4 WHERE id = ?1",
+        rusqlite::params![id, name, color, nature],
+    )?;
+    tx.execute(
+        "UPDATE apps SET kind = ?2 WHERE category_id = ?1",
+        rusqlite::params![id, nature],
+    )?;
+    tx.commit()
+}
+
+/// Delete a category; member apps revert to uncategorized + neutral.
+pub fn delete_category(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
+        "UPDATE apps SET category_id = NULL, kind = 'neutral' WHERE category_id = ?1",
+        [id],
+    )?;
+    tx.execute("DELETE FROM categories WHERE id = ?1", [id])?;
+    tx.commit()
+}
+
+/// Assign (or clear) an app's category and mirror `kind` to the category's nature.
+/// `category_id` must be `None` or a valid existing category id (callers pass ids from
+/// `list_categories`); an unknown id returns `QueryReturnedNoRows` and makes no change.
+pub fn set_app_category(conn: &Connection, app_id: i64, category_id: Option<i64>) -> rusqlite::Result<()> {
+    let nature: String = match category_id {
+        Some(cid) => conn.query_row("SELECT nature FROM categories WHERE id = ?1", [cid], |r| r.get(0))?,
+        None => "neutral".to_string(),
+    };
+    conn.execute(
+        "UPDATE apps SET category_id = ?2, kind = ?3 WHERE id = ?1",
+        rusqlite::params![app_id, category_id, nature],
+    )?;
+    Ok(())
+}
+
+/// Time grouped by category within [from, to). NULL bucket = "Uncategorized".
+pub fn usage_by_category(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<CategoryUsage>> {
+    let mut stmt = conn.prepare(
+        "SELECT a.category_id,
+                COALESCE(c.name, 'Uncategorized') AS name,
+                COALESCE(c.color, '#9A8F7C') AS color,
+                COALESCE(c.nature, 'neutral') AS nature,
+                COALESCE(SUM(s.active_seconds), 0) AS secs
+         FROM apps a
+         LEFT JOIN sessions s ON s.app_id = a.id AND s.started_at >= ?1 AND s.started_at < ?2
+         LEFT JOIN categories c ON c.id = a.category_id
+         GROUP BY a.category_id
+         HAVING secs > 0
+         ORDER BY secs DESC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(CategoryUsage {
+        category_id: r.get(0)?, name: r.get(1)?, color: r.get(2)?, nature: r.get(3)?, seconds: r.get(4)?,
+    }))?;
+    rows.collect()
+}
 
 #[derive(Debug, Serialize, Clone)]
 pub struct Note {
@@ -690,6 +791,65 @@ mod tests {
         let day = list_tasks_between(&c, 0, 86_400).unwrap();
         assert_eq!(day.len(), 1);
         assert_eq!(day[0].id, a);
+    }
+
+    #[test]
+    fn category_crud_and_kind_mirror() {
+        let c = open_in_memory().unwrap();
+        // seeded defaults exist
+        let seeded = list_categories(&c).unwrap();
+        assert!(seeded.iter().any(|x| x.name == "Productivity" && x.nature == "productive"));
+
+        // add an app (defaults to neutral / uncategorized)
+        let app = add_app(&c, "Slack", "slack.exe", "neutral", "#000", None).unwrap();
+
+        // add a custom category and assign it -> kind mirrors nature
+        let cat = add_category(&c, "Focus", "#123456", "productive").unwrap();
+        set_app_category(&c, app, Some(cat)).unwrap();
+        let kind: String = c.query_row("SELECT kind FROM apps WHERE id=?1", [app], |r| r.get(0)).unwrap();
+        assert_eq!(kind, "productive");
+
+        // editing the category nature re-syncs member apps' kind
+        update_category(&c, cat, "Focus", "#123456", "distracting").unwrap();
+        let kind2: String = c.query_row("SELECT kind FROM apps WHERE id=?1", [app], |r| r.get(0)).unwrap();
+        assert_eq!(kind2, "distracting");
+
+        // unassigning resets kind to neutral
+        set_app_category(&c, app, None).unwrap();
+        let kind3: String = c.query_row("SELECT kind FROM apps WHERE id=?1", [app], |r| r.get(0)).unwrap();
+        assert_eq!(kind3, "neutral");
+
+        // re-assign then delete the category -> app goes uncategorized + neutral
+        set_app_category(&c, app, Some(cat)).unwrap();
+        delete_category(&c, cat).unwrap();
+        let (cid, kind4): (Option<i64>, String) = c
+            .query_row("SELECT category_id, kind FROM apps WHERE id=?1", [app], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!(cid, None);
+        assert_eq!(kind4, "neutral");
+        assert!(list_categories(&c).unwrap().iter().all(|x| x.id != cat));
+    }
+
+    #[test]
+    fn usage_by_category_groups_with_uncategorized_bucket() {
+        let c = open_in_memory().unwrap();
+        let prod = add_category(&c, "Prod", "#0a0", "productive").unwrap();
+        let a1 = add_app(&c, "Code", "code.exe", "neutral", "#111", None).unwrap();
+        let a2 = add_app(&c, "Game", "game.exe", "neutral", "#222", None).unwrap();
+        set_app_category(&c, a1, Some(prod)).unwrap();
+        // a2 stays uncategorized
+        c.execute("INSERT INTO sessions (app_id, started_at, ended_at, active_seconds) VALUES (?1, 100, 200, 600)", [a1]).unwrap();
+        c.execute("INSERT INTO sessions (app_id, started_at, ended_at, active_seconds) VALUES (?1, 100, 200, 300)", [a2]).unwrap();
+
+        let rows = usage_by_category(&c, 0, 1000).unwrap();
+        // ordered by seconds desc: Prod (600) then Uncategorized (300)
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].name, "Prod");
+        assert_eq!(rows[0].seconds, 600);
+        assert_eq!(rows[0].category_id, Some(prod));
+        assert_eq!(rows[1].name, "Uncategorized");
+        assert_eq!(rows[1].seconds, 300);
+        assert_eq!(rows[1].category_id, None);
     }
 
     #[test]
