@@ -127,6 +127,48 @@ pub fn clear_site(state: State<AppState>, domain: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub fn list_site_caps(state: State<AppState>) -> Result<Vec<queries::SiteCap>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_site_caps(&conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_site_limit(state: State<AppState>, domain: String, daily_cap_seconds: i64, limit_action: String)
+    -> Result<(), String> {
+    {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        queries::set_site_limit(&conn, &domain, daily_cap_seconds, &limit_action).map_err(|e| e.to_string())?;
+    }
+    if daily_cap_seconds == 0 {
+        if let Ok(mut b) = state.browser.lock() { b.blocked.remove(&domain); }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn snooze_site_limit(state: State<AppState>, domain: String, minutes: i64) -> Result<(), String> {
+    let mut rt = state.site_limits.lock().map_err(|e| e.to_string())?;
+    rt.state_mut(&domain).snoozed_until = chrono::Utc::now().timestamp() + minutes * 60;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn ignore_site_limit(state: State<AppState>, domain: String) -> Result<(), String> {
+    {
+        let mut rt = state.site_limits.lock().map_err(|e| e.to_string())?;
+        rt.state_mut(&domain).ignored = true;
+    }
+    if let Ok(mut b) = state.browser.lock() { b.blocked.remove(&domain); }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn block_site(state: State<AppState>, domain: String) -> Result<(), String> {
+    if let Ok(mut b) = state.browser.lock() { b.blocked.insert(domain); }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn daily_totals(state: State<AppState>, from: i64, to: i64) -> Result<Vec<DayTotal>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let rows = queries::sessions_between(&conn, from, to).map_err(|e| e.to_string())?;

@@ -122,6 +122,11 @@ pub fn run() {
             crate::commands::site_usage_today,
             crate::commands::site_usage_range,
             crate::commands::clear_site,
+            crate::commands::list_site_caps,
+            crate::commands::set_site_limit,
+            crate::commands::snooze_site_limit,
+            crate::commands::ignore_site_limit,
+            crate::commands::block_site,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
