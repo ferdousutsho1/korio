@@ -70,10 +70,10 @@
     <p class="empty">No site activity tracked in this range. Enable Browser tracking in Settings and install the Korio extension.</p>
   {:else}
     <ul>
-      {#each rows as s (s.domain)}
+      {#each rows as s, i (s.domain)}
         <li>
           <span class="name" title={s.domain}>{s.domain}</span>
-          <span class="track"><span class="fill" style={`width:${max > 0 ? (s.seconds / max) * 100 : 0}%;background:${colorFor(rows.indexOf(s))}`}></span></span>
+          <span class="track"><span class="fill" style={`width:${max > 0 ? (s.seconds / max) * 100 : 0}%;background:${colorFor(i)}`}></span></span>
           <span class="t">{formatDuration(s.seconds)}</span>
           <span class="limit">
             <input class="cap" type="number" min="0" step="5" value={Math.round(s.cap / 60)}
