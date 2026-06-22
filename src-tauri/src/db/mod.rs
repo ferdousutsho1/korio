@@ -26,6 +26,23 @@ fn init_connection(conn: &Connection) -> rusqlite::Result<()> {
 }
 
 pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+    // One-time reshape of the legacy unused stub `categories(id,name,kind)` to the new schema.
+    // Only drops a categories table that lacks the new `nature` column; never touches an
+    // already-migrated table (so user-created categories are preserved across boots).
+    // - fresh DB      → no table → no drop, batch creates new schema
+    // - legacy DB     → has id/name/kind but no `nature` → dropped, batch recreates new schema
+    // - migrated DB   → has `nature` → not dropped, CREATE IF NOT EXISTS is a no-op
+    {
+        let mut stmt = conn.prepare("PRAGMA table_info(categories)")?;
+        let cols: Vec<String> = stmt
+            .query_map([], |r| r.get::<_, String>(1))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let legacy = !cols.is_empty() && !cols.iter().any(|c| c == "nature");
+        if legacy {
+            conn.execute("DROP TABLE categories", [])?;
+        }
+    }
+
     conn.execute_batch(
         r#"
         PRAGMA journal_mode = WAL;
