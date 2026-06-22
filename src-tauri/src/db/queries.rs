@@ -215,6 +215,40 @@ pub fn total_seconds_between(conn: &Connection, from: i64, to: i64) -> rusqlite:
     )
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct SiteUsage {
+    pub domain: String,
+    pub seconds: i64,
+}
+
+pub fn insert_site_session(conn: &Connection, domain: &str, started_at: i64, ended_at: i64, seconds: i64)
+    -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO site_sessions (domain, started_at, ended_at, seconds) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![domain, started_at, ended_at, seconds],
+    )?;
+    Ok(())
+}
+
+/// Aggregate seconds per domain within [from, to), sorted by seconds DESC.
+pub fn site_usage_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<SiteUsage>> {
+    let mut stmt = conn.prepare(
+        "SELECT domain, COALESCE(SUM(seconds), 0) AS secs
+         FROM site_sessions
+         WHERE started_at >= ?1 AND started_at < ?2
+         GROUP BY domain
+         HAVING secs > 0
+         ORDER BY secs DESC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(SiteUsage { domain: r.get(0)?, seconds: r.get(1)? }))?;
+    rows.collect()
+}
+
+pub fn clear_site(conn: &Connection, domain: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM site_sessions WHERE domain = ?1", [domain])?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct Task {
     pub id: i64,
@@ -545,6 +579,27 @@ mod tests {
         assert!(list_notes(&c).unwrap()[0].due.is_none());
         delete_note(&c, a).unwrap();
         assert!(list_notes(&c).unwrap().is_empty());
+    }
+
+    #[test]
+    fn site_sessions_insert_aggregate_and_clear() {
+        let c = crate::db::open_in_memory().unwrap();
+        insert_site_session(&c, "youtube.com", 10, 110, 100).unwrap();
+        insert_site_session(&c, "youtube.com", 200, 230, 50).unwrap();
+        insert_site_session(&c, "reddit.com", 300, 330, 30).unwrap();
+        let usage = site_usage_between(&c, 0, 1000).unwrap();
+        assert_eq!(usage.len(), 2);
+        assert_eq!(usage[0].domain, "youtube.com");
+        assert_eq!(usage[0].seconds, 150);
+        assert_eq!(usage[1].domain, "reddit.com");
+        assert_eq!(usage[1].seconds, 30);
+        let narrow = site_usage_between(&c, 0, 250).unwrap();
+        assert_eq!(narrow.iter().find(|u| u.domain == "youtube.com").unwrap().seconds, 150);
+        assert!(narrow.iter().all(|u| u.domain != "reddit.com"));
+        clear_site(&c, "youtube.com").unwrap();
+        let after = site_usage_between(&c, 0, 1000).unwrap();
+        assert_eq!(after.len(), 1);
+        assert_eq!(after[0].domain, "reddit.com");
     }
 
     #[test]
