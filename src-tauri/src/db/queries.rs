@@ -10,6 +10,7 @@ pub struct App {
     pub color: String,
     pub daily_cap_seconds: i64,
     pub limit_action: String,
+    pub category_id: Option<i64>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -95,13 +96,14 @@ pub fn remove_app(conn: &Connection, id: i64) -> rusqlite::Result<()> {
 
 pub fn list_apps(conn: &Connection) -> rusqlite::Result<Vec<App>> {
     let mut stmt = conn.prepare(
-        "SELECT id, display_name, exe_name, kind, color, daily_cap_seconds, limit_action
+        "SELECT id, display_name, exe_name, kind, color, daily_cap_seconds, limit_action, category_id
          FROM apps ORDER BY display_name COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], |r| Ok(App {
         id: r.get(0)?, display_name: r.get(1)?, exe_name: r.get(2)?,
         kind: r.get(3)?, color: r.get(4)?,
         daily_cap_seconds: r.get(5)?, limit_action: r.get(6)?,
+        category_id: r.get(7)?,
     }))?;
     rows.collect()
 }
