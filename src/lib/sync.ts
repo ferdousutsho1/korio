@@ -41,7 +41,7 @@ export function createSync(bus: Bus, originId: string) {
 
 // ---- Tauri wiring (no-op without Tauri, so vitest/browser preview are safe) ----
 let IS_MAIN = true;
-/** True in the main app window; false in widget windows. Defaults true until initSync resolves. */
+/** True in the main app window; false in secondary windows (e.g. capture). Defaults true until initSync resolves. */
 export function isMainWindow(): boolean { return IS_MAIN; }
 
 let started = false;
@@ -74,6 +74,6 @@ export async function initSync() {
     ["sync:pomodoro-cfg", config as unknown as Writable<unknown>],
   ];
   for (const [ch, store] of channels) sync.register(ch, store);
-  // Ask peers for current state on open (widgets adopt the main window's running state).
+  // Ask peers for current state on open (secondary windows adopt the main window's running state).
   for (const [ch] of channels) sync.request(ch);
 }
