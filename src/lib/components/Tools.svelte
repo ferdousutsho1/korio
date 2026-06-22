@@ -3,7 +3,6 @@
   import Stopwatch from "$lib/components/Stopwatch.svelte";
   import CountdownTimer from "$lib/components/CountdownTimer.svelte";
   import WorldClock from "$lib/components/WorldClock.svelte";
-  import { openWidget, type WidgetKind } from "$lib/api";
   const tabs = [
     { id: "pomodoro", label: "Pomodoro" },
     { id: "stopwatch", label: "Stopwatch" },
@@ -18,7 +17,6 @@
     {#each tabs as t}
       <button class:on={tab === t.id} onclick={() => (tab = t.id)}>{t.label}</button>
     {/each}
-    <button class="pin" title="Pin this tool to the desktop" onclick={() => openWidget(tab as WidgetKind)}>📌 Pin to desktop</button>
   </div>
   <div class="panel">
     {#if tab === "pomodoro"}<Pomodoro />{:else if tab === "stopwatch"}<Stopwatch />{:else if tab === "timer"}<CountdownTimer />{:else}<WorldClock />{/if}
@@ -31,8 +29,5 @@
   .tabs button { font: inherit; font-size: 13px; padding: 8px 14px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
   .tabs button.on { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
-  .pin { margin-left: auto; font: inherit; font-size: 13px; padding: 8px 14px; border: 1px solid var(--line);
-    border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
-  .pin:hover { color: var(--text); border-color: var(--accent); }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px; }
 </style>
