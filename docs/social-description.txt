@@ -1,0 +1,53 @@
+KORIO — SOCIAL MEDIA COPY
+=========================
+(Mix and match — short bio, one-liners, and a longer post are below.)
+
+
+ONE-LINER / BIO (for profiles, app stores, "what is this")
+----------------------------------------------------------
+Korio — a private, 100% offline focus tracker for Windows that helps you understand your time and work smarter, not harder.
+
+
+TAGLINE OPTIONS
+---------------
+• Track your focus. Understand your time.
+• Productivity, privately. 100% offline.
+• Work smarter, not harder.
+• Your time, your data — on your machine.
+
+
+SHORT POST (tweet / X — ~280 chars)
+-----------------------------------
+Meet Korio 🟢 — a private, 100% offline focus tracker for Windows.
+
+Auto-tracks app & website time, scores your focus, sets daily limits, and packs Pomodoro, tasks, notes & goals — all in a tiny native app. No accounts. No cloud. No telemetry.
+
+Built by Ferdous Utsho.
+
+
+MEDIUM POST (LinkedIn / Product Hunt / Reddit)
+----------------------------------------------
+Introducing Korio — a private, offline-first focus & productivity app for Windows. ⚡
+
+Korio quietly tracks how long you actively use the apps (and websites) you choose, turns it into clear visuals, and gives you gentle nudges to stay on track — without sending a single byte to the cloud.
+
+What's inside:
+• 📊 Automatic focus tracking + a Focus Score from your own app categories
+• 🧩 Customizable dashboard (drag-and-drop cards, category pie, heatmap, timeline)
+• 🌐 Optional website tracking via a companion browser extension (domains only)
+• ⏳ Per-app & per-site daily limits (warn or auto-close)
+• 🍅 Pomodoro, stopwatch, timer & world clock — with selectable sounds
+• ✅ Tasks, sticky notes, goals & streaks, end-of-day digest, quick-capture hotkey
+• 🔒 100% offline, local SQLite, no telemetry — export/backup your data anytime
+• 🪶 Lightweight & portable (built with Tauri — runs in ~50–90MB RAM)
+
+The name comes from the Japanese word kōritsu (効率), meaning "efficiency."
+
+Made by Ferdous Utsho.
+#productivity #focus #windows #opensource #privacy
+
+
+HASHTAG BANK
+------------
+#productivity #focustracker #timetracking #windows #privacy
+#offlinefirst #tauri #rustlang #svelte #buildinpublic #indiedev
