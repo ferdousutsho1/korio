@@ -141,6 +141,9 @@ pub fn set_site_limit(state: State<AppState>, domain: String, daily_cap_seconds:
     }
     if daily_cap_seconds == 0 {
         if let Ok(mut b) = state.browser.lock() { b.blocked.remove(&domain); }
+        // Also drop any runtime limit state (warned/snoozed/ignored) so re-adding a
+        // cap for this domain later today warns fresh instead of staying suppressed.
+        if let Ok(mut rt) = state.site_limits.lock() { rt.states.remove(&domain); }
     }
     Ok(())
 }
