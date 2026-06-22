@@ -5,6 +5,7 @@
     { id: "dashboard", glyph: "◷", label: "Dashboard" },
     { id: "stats", glyph: "▤", label: "Stats" },
     { id: "watchlist", glyph: "▦", label: "Watchlist" },
+    { id: "sites", glyph: "🌐", label: "Sites" },
     { id: "tools", glyph: "⏱", label: "Tools" },
     { id: "tasks", glyph: "✓", label: "Tasks" },
     { id: "notes", glyph: "🗒", label: "Notes" },
