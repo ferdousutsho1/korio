@@ -8,9 +8,11 @@
   import TasksCard from "$lib/components/cards/TasksCard.svelte";
   import NotesCard from "$lib/components/cards/NotesCard.svelte";
   import GoalsCard from "$lib/components/cards/GoalsCard.svelte";
+  import CategoryBreakdownCard from "$lib/components/cards/CategoryBreakdownCard.svelte";
 
   const COMPONENTS: Record<CardId, any> = {
-    focus_breakdown: FocusBreakdownCard, focus_score: FocusScoreCard, tracking_now: TrackingNowCard,
+    focus_breakdown: FocusBreakdownCard, category_breakdown: CategoryBreakdownCard,
+    focus_score: FocusScoreCard, tracking_now: TrackingNowCard,
     today_stats: TodayStatsCard, tasks: TasksCard, notes: NotesCard, goals: GoalsCard,
   };
 
@@ -27,7 +29,7 @@
 <div class="grid">
   {#each visible as c (c.id)}
     {@const Card = COMPONENTS[c.id]}
-    {#if Card}<div class="cell" class:wide={c.id === "focus_breakdown"}><Card /></div>{/if}
+    {#if Card}<div class="cell" class:wide={c.id === "focus_breakdown" || c.id === "category_breakdown"}><Card /></div>{/if}
   {/each}
 </div>
 

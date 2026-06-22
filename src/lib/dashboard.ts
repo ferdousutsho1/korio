@@ -1,13 +1,14 @@
 import { readJSON, writeJSON } from "$lib/prefs";
 
 export type CardId =
-  | "focus_breakdown" | "focus_score" | "tracking_now"
+  | "focus_breakdown" | "category_breakdown" | "focus_score" | "tracking_now"
   | "today_stats" | "tasks" | "notes" | "goals";
 
 export interface CardState { id: CardId; enabled: boolean; }
 
 export const CARD_CATALOG: { id: CardId; title: string }[] = [
   { id: "focus_breakdown", title: "Focus breakdown" },
+  { id: "category_breakdown", title: "Category breakdown" },
   { id: "focus_score", title: "Focus score" },
   { id: "tracking_now", title: "Tracking now" },
   { id: "today_stats", title: "Today's stats" },
@@ -18,6 +19,7 @@ export const CARD_CATALOG: { id: CardId; title: string }[] = [
 
 export const DEFAULT_LAYOUT: CardState[] = [
   { id: "focus_breakdown", enabled: true },
+  { id: "category_breakdown", enabled: true },
   { id: "focus_score", enabled: true },
   { id: "tracking_now", enabled: true },
   { id: "today_stats", enabled: false },
