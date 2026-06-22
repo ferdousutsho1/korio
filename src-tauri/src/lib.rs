@@ -117,6 +117,9 @@ pub fn run() {
             crate::capture::set_capture_shortcut,
             crate::browser::browser_status,
             crate::browser::set_browser_enabled,
+            crate::commands::site_usage_today,
+            crate::commands::site_usage_range,
+            crate::commands::clear_site,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
