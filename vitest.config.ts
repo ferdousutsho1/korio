@@ -13,5 +13,13 @@ export default defineConfig({
   test: {
     include: ["src/**/*.{test,spec}.ts"],
     environment: "node",
+    environmentMatchGlobs: [
+      // Tests that use localStorage need a browser-like environment.
+      ["src/lib/prefs.test.ts", "happy-dom"],
+      ["src/lib/sound.test.ts", "happy-dom"],
+    ],
+    // A global guard so any future node-env test that touches localStorage degrades
+    // gracefully (prefs.test.ts itself uses happy-dom and doesn't rely on this).
+    setupFiles: [fileURLToPath(new URL("./src/lib/__stubs__/localStorage.ts", import.meta.url))],
   },
 });

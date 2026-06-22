@@ -4,10 +4,18 @@
   import Heatmap from "$lib/components/Heatmap.svelte";
   import TimelineRibbon from "$lib/components/TimelineRibbon.svelte";
   import { usageRange, dailyTotals, daySessions, type UsageSlice, type DayTotal, type SessionRow } from "$lib/api";
-  import { presetRange, dayStartLocal, type Range } from "$lib/ranges";
+  import { presetRange, customRange, dayStartLocal, isoDate, type Range, type Preset } from "$lib/ranges";
+  import { readJSON, writeJSON } from "$lib/prefs";
 
-  let range = $state<Range>(presetRange("7d"));
-  let rangeLabel = $state("Last 7 days");
+  type SavedRange =
+    | { kind: "preset"; preset: Preset; label: string }
+    | { kind: "custom"; from: string; to: string; label: string };
+  const KEY = "korio.stats.range";
+  const saved = readJSON<SavedRange>(KEY, { kind: "preset", preset: "today", label: "Today" });
+  const initialRange: Range = saved.kind === "preset" ? presetRange(saved.preset) : customRange(saved.from, saved.to);
+  const initialPicker = saved.kind === "preset" ? saved.preset : { from: saved.from, to: saved.to };
+  let range = $state<Range>(initialRange);
+  let rangeLabel = $state(saved.label);
   let slices = $state<UsageSlice[]>([]);
   let totals = $state<DayTotal[]>([]);
   let selectedDay = $state<number>(dayStartLocal(new Date()));
@@ -22,12 +30,17 @@
   $effect(() => { range; loadRange(); });
   $effect(() => { selectedDay; loadDay(); });
 
-  function onRange(r: Range, label: string) { range = r; rangeLabel = label; }
+  function onRange(r: Range, label: string, preset: Preset | null) {
+    range = r;
+    rangeLabel = label;
+    if (preset) writeJSON(KEY, { kind: "preset", preset, label });
+    else writeJSON(KEY, { kind: "custom", from: isoDate(r.from), to: isoDate(r.to - 86400), label });
+  }
   function onPickDay(day: number) { selectedDay = day; }
 </script>
 
 <div class="stats">
-  <RangePicker onChange={onRange} />
+  <RangePicker onChange={onRange} initial={initialPicker} />
   <div class="sub">{rangeLabel}</div>
   <BarBreakdown {slices} />
   <Heatmap from={range.from} to={range.to} {totals} {onPickDay} />

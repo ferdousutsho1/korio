@@ -280,17 +280,23 @@ pub fn verify_pin(state: State<AppState>, pin: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub fn list_tasks(state: State<AppState>) -> Result<Vec<Task>, String> {
+pub fn list_tasks(state: State<AppState>, from: Option<i64>, to: Option<i64>) -> Result<Vec<Task>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    queries::list_tasks(&conn).map_err(|e| e.to_string())
+    match (from, to) {
+        (Some(f), Some(t)) => queries::list_tasks_between(&conn, f, t).map_err(|e| e.to_string()),
+        _ => queries::list_tasks(&conn).map_err(|e| e.to_string()),
+    }
 }
 
 #[tauri::command]
-pub fn add_task(state: State<AppState>, title: String) -> Result<i64, String> {
+pub fn add_task(state: State<AppState>, title: String, created_at: Option<i64>) -> Result<i64, String> {
     let t = title.trim();
     if t.is_empty() { return Err("empty title".into()); }
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    queries::add_task(&conn, t).map_err(|e| e.to_string())
+    match created_at {
+        Some(ts) => queries::add_task_at(&conn, t, ts).map_err(|e| e.to_string()),
+        None => queries::add_task(&conn, t).map_err(|e| e.to_string()),
+    }
 }
 
 #[tauri::command]

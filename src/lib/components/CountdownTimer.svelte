@@ -1,6 +1,7 @@
 <script lang="ts">
   import { nowMs, timer, timerSet, timerStartPause, timerReset, timerRemaining } from "$lib/tools";
   import { formatClock } from "$lib/format";
+  import { playSound, getSoundPref } from "$lib/sound";
 
   const presets = [1, 5, 10, 25];
   let mins = $state(5);
@@ -16,18 +17,7 @@
   function applyPreset(m: number) { mins = m; timerSet(m * 60_000); }
   function setCustom() { timerSet(Math.max(0, Math.round(mins)) * 60_000); }
 
-  function beep() {
-    try {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new Ctx();
-      const o = ctx.createOscillator(); const g = ctx.createGain();
-      o.frequency.value = 880; o.connect(g); g.connect(ctx.destination);
-      g.gain.setValueAtTime(0.001, ctx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-      o.start(); o.stop(ctx.currentTime + 0.6);
-    } catch { /* audio not available */ }
-  }
+  function beep() { playSound(getSoundPref("timer")); }
 </script>
 
 <div class="tm" class:done={$timer.done}>

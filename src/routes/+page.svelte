@@ -15,18 +15,13 @@
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
   import { navIntent } from "$lib/nav";
-  import WidgetHost from "$lib/components/widget/WidgetHost.svelte";
   import CaptureWindow from "$lib/components/CaptureWindow.svelte";
-  import type { WidgetKind } from "$lib/api";
-  const widgetKind = browser ? (new URLSearchParams(location.search).get("widget") as WidgetKind | null) : null;
   const captureMode = browser && new URLSearchParams(location.search).has("capture");
   let active = $state("dashboard");
   onMount(() => navIntent.subscribe((v) => { if (v) { active = v; navIntent.set(null); } }));
 </script>
 
-{#if widgetKind}
-<WidgetHost kind={widgetKind} />
-{:else if captureMode}
+{#if captureMode}
 <CaptureWindow />
 {:else}
 <main class="shell">

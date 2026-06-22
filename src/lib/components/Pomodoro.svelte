@@ -2,6 +2,7 @@
   import { nowMs } from "$lib/tools";
   import { pomodoro, config, setConfig, pomoStartPause, pomoReset, pomoSkip, pomoRemaining, type PomodoroConfig } from "$lib/pomodoro";
   import { formatClock } from "$lib/format";
+  import { playSound, getSoundPref } from "$lib/sound";
 
   let remaining = $derived(pomoRemaining($pomodoro, $nowMs));
   let label = $state("");
@@ -15,21 +16,7 @@
     prevTransitions = t;
   });
 
-  function chime() {
-    try {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new Ctx();
-      [660, 880].forEach((f, i) => {
-        const o = ctx.createOscillator(); const g = ctx.createGain();
-        o.frequency.value = f; o.connect(g); g.connect(ctx.destination);
-        const t0 = ctx.currentTime + i * 0.18;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
-        o.start(t0); o.stop(t0 + 0.18);
-      });
-    } catch { /* no audio */ }
-  }
+  function chime() { playSound(getSoundPref("pomodoro")); }
 
   function updateCfg(patch: Partial<PomodoroConfig>) { setConfig({ ...$config, ...patch }); }
 </script>

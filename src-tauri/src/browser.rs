@@ -230,6 +230,12 @@ pub fn start(app: AppHandle) {
     });
 }
 
+/// True if a report seen `secs` ago counts as a live connection.
+/// Window must exceed the extension's 30s heartbeat to avoid flapping.
+fn is_connected(last_seen_secs: Option<i64>) -> bool {
+    last_seen_secs.map(|s| s <= 45).unwrap_or(false)
+}
+
 /// Signal the server thread to stop and clear the active site.
 pub fn stop(app: &AppHandle) {
     let state = app.state::<AppState>();
@@ -268,7 +274,7 @@ pub fn browser_status(app: AppHandle) -> Result<BrowserStatus, String> {
             None => (None, None),
         }
     };
-    let connected = last_seen_secs.map(|s| s <= 15).unwrap_or(false);
+    let connected = is_connected(last_seen_secs);
     Ok(BrowserStatus { enabled, port, token, connected, last_seen_secs, domain })
 }
 
@@ -327,6 +333,16 @@ mod tests {
         assert!(is_browser_exe("CHROME.EXE"));
         assert!(!is_browser_exe("code.exe"));
         assert!(!is_browser_exe("explorer.exe"));
+    }
+
+    #[test]
+    fn connected_tolerates_full_heartbeat_interval() {
+        // extension heartbeat is 30s; a 30s-old report must still read as connected
+        assert!(is_connected(Some(0)));
+        assert!(is_connected(Some(30)));
+        assert!(is_connected(Some(45)));
+        assert!(!is_connected(Some(46)));
+        assert!(!is_connected(None));
     }
 
     #[test]

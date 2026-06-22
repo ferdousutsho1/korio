@@ -59,8 +59,10 @@ const PALETTE = ["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3
 export const colorFor = (i: number) => PALETTE[i % PALETTE.length];
 
 export interface Task { id: number; title: string; done: boolean; created_at: number; }
-export const listTasks = () => invoke<Task[]>("list_tasks");
-export const addTask = (title: string) => invoke<number>("add_task", { title });
+export const listTasks = (from?: number, to?: number) =>
+  invoke<Task[]>("list_tasks", { from: from ?? null, to: to ?? null });
+export const addTask = (title: string, createdAt?: number) =>
+  invoke<number>("add_task", { title, createdAt: createdAt ?? null });
 export const setTaskDone = (id: number, done: boolean) => invoke<void>("set_task_done", { id, done });
 export const updateTaskTitle = (id: number, title: string) => invoke<void>("update_task_title", { id, title });
 export const deleteTask = (id: number) => invoke<void>("delete_task", { id });
@@ -76,13 +78,6 @@ export const updateNote = (n: { id: number; title: string; body: string; color: 
   invoke<void>("update_note", { id: n.id, title: n.title, body: n.body, color: n.color, due: n.due });
 export const deleteNote = (id: number) => invoke<void>("delete_note", { id });
 
-export type WidgetKind = "stopwatch" | "timer" | "clock" | "pomodoro";
-export const openWidget = (kind: WidgetKind) => invoke<void>("open_widget", { kind });
-export const closeWidget = (kind: WidgetKind) => invoke<void>("close_widget", { kind });
-export const setWidgetAlwaysOnTop = (kind: WidgetKind, on: boolean) =>
-  invoke<void>("set_widget_always_on_top", { kind, on });
-export const saveWidgetBounds = (kind: WidgetKind, x: number, y: number, w: number, h: number) =>
-  invoke<void>("save_widget_bounds", { kind, x, y, w, h });
 
 export const listGoals = () => invoke<Goal[]>("list_goals");
 export const goalsProgress = () => invoke<GoalProgress[]>("goals_progress");
