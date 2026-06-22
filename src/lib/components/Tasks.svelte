@@ -17,8 +17,9 @@
     const t = newTitle.trim();
     if (!t) return;
     newTitle = "";
-    // file under the selected day; use real "now" when viewing today
-    await addTask(t, isToday ? undefined : day);
+    // file under the selected day; use real "now" when the selected day IS today (recomputed, not the possibly-stale derived)
+    const today = dayStartLocal(new Date());
+    await addTask(t, day === today ? undefined : day);
     await refresh();
   }
   async function toggle(task: Task) { await setTaskDone(task.id, !task.done); await refresh(); }
@@ -36,7 +37,7 @@
   <div class="daybar">
     <button class="nav" onclick={() => (day -= DAY)} aria-label="Previous day">‹</button>
     <input class="day" type="date" value={isoDate(day)}
-      onchange={(e) => { const [y,m,d] = e.currentTarget.value.split('-').map(Number); day = dayStartLocal(new Date(y, m-1, d)); }}
+      onchange={(e) => { const v = e.currentTarget.value; if (!v) return; const [y,m,d] = v.split('-').map(Number); day = dayStartLocal(new Date(y, m-1, d)); }}
       aria-label="Task date" />
     <button class="nav" onclick={() => (day += DAY)} disabled={isToday} aria-label="Next day">›</button>
     {#if !isToday}<button class="today" onclick={() => (day = dayStartLocal(new Date()))}>Today</button>{/if}
