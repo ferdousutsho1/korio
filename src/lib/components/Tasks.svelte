@@ -1,19 +1,24 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import { listTasks, addTask, setTaskDone, updateTaskTitle, deleteTask, clearDoneTasks, type Task } from "$lib/api";
+  import { dayStartLocal, isoDate } from "$lib/ranges";
 
   let tasks = $state<Task[]>([]);
   let newTitle = $state("");
   let doneCount = $derived(tasks.filter((t) => t.done).length);
 
-  async function refresh() { tasks = await listTasks(); }
-  onMount(refresh);
+  let day = $state<number>(dayStartLocal(new Date()));   // local midnight, unix secs
+  const DAY = 86400;
+  const isToday = $derived(day === dayStartLocal(new Date()));
+
+  async function refresh() { tasks = await listTasks(day, day + DAY); }
+  $effect(() => { day; refresh(); });
 
   async function add() {
     const t = newTitle.trim();
     if (!t) return;
     newTitle = "";
-    await addTask(t);
+    // file under the selected day; use real "now" when viewing today
+    await addTask(t, isToday ? undefined : day);
     await refresh();
   }
   async function toggle(task: Task) { await setTaskDone(task.id, !task.done); await refresh(); }
@@ -28,13 +33,21 @@
 </script>
 
 <div class="tasks">
+  <div class="daybar">
+    <button class="nav" onclick={() => (day -= DAY)} aria-label="Previous day">‹</button>
+    <input class="day" type="date" value={isoDate(day)}
+      onchange={(e) => { const [y,m,d] = e.currentTarget.value.split('-').map(Number); day = dayStartLocal(new Date(y, m-1, d)); }}
+      aria-label="Task date" />
+    <button class="nav" onclick={() => (day += DAY)} disabled={isToday} aria-label="Next day">›</button>
+    {#if !isToday}<button class="today" onclick={() => (day = dayStartLocal(new Date()))}>Today</button>{/if}
+  </div>
   <form class="add" onsubmit={(e) => { e.preventDefault(); add(); }}>
     <input bind:value={newTitle} placeholder="Add a task and press Enter…" aria-label="New task" />
     <button type="submit" class="addbtn">Add</button>
   </form>
 
   {#if tasks.length === 0}
-    <div class="empty">No tasks yet. Add what you want to get done today.</div>
+    <div class="empty">No tasks for this day. Add one above.</div>
   {:else}
     <ul class="list">
       {#each tasks as task (task.id)}
@@ -77,5 +90,13 @@
   .x { border: none; background: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; }
   .foot { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; }
   .clear { font: inherit; font-size: 12px; padding: 5px 10px; border: 1px solid var(--line);
+    border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .daybar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .daybar .nav { width: 30px; height: 30px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text); cursor: pointer; line-height: 1; }
+  .daybar .nav:disabled { opacity: .4; cursor: default; }
+  .daybar .day { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line);
+    border-radius: var(--radius-sm); background: var(--surface); color: var(--text); color-scheme: light dark; }
+  .daybar .today { font: inherit; font-size: 12px; padding: 6px 10px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
 </style>
