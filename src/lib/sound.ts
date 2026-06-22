@@ -24,12 +24,21 @@ export function setSoundPref(t: SoundType, id: SoundId): void {
   writeJSON(KEY(t), id);
 }
 
+let _ctx: AudioContext | undefined;
+function getCtx(): AudioContext {
+  if (!_ctx) {
+    const Ctor = window.AudioContext || (window as any).webkitAudioContext;
+    _ctx = new Ctor();
+  }
+  if (_ctx.state === "suspended") _ctx.resume();
+  return _ctx;
+}
+
 /** Two-tone/oscillator presets. No-op for "silent" or when WebAudio is unavailable. */
 export function playSound(id: SoundId): void {
   if (id === "silent") return;
   try {
-    const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-    const ctx = new Ctx();
+    const ctx = getCtx();
     const tone = (freq: number, start: number, dur: number, peak = 0.25) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.frequency.value = freq; o.connect(g); g.connect(ctx.destination);

@@ -9,11 +9,11 @@
   import { hasPin, setPin, clearPin } from "$lib/api";
   import { ensureNotificationPermission } from "$lib/digest";
   import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
-  import { SOUNDS, getSoundPref, setSoundPref, playSound, type SoundType } from "$lib/sound";
+  import { SOUNDS, getSoundPref, setSoundPref, playSound, type SoundType, type SoundId } from "$lib/sound";
 
   let pomoSound = $state(getSoundPref("pomodoro"));
   let timerSound = $state(getSoundPref("timer"));
-  function chooseSound(type: SoundType, id: typeof SOUNDS[number]["id"]) {
+  function chooseSound(type: SoundType, id: SoundId) {
     setSoundPref(type, id);
     if (type === "pomodoro") pomoSound = id; else timerSound = id;
     playSound(id);
@@ -175,7 +175,7 @@
       <div class="help">Plays when a Pomodoro phase ends.</div></div>
     <div class="seg">
       <select aria-label="Pomodoro sound" value={pomoSound}
-        onchange={(e) => chooseSound("pomodoro", e.currentTarget.value as any)}>
+        onchange={(e) => chooseSound("pomodoro", e.currentTarget.value as SoundId)}>
         {#each SOUNDS as s}<option value={s.id}>{s.label}</option>{/each}
       </select>
       <button class="reset" onclick={() => playSound(pomoSound)} aria-label="Preview pomodoro sound">▶ Preview</button>
@@ -186,7 +186,7 @@
       <div class="help">Plays when a countdown timer finishes.</div></div>
     <div class="seg">
       <select aria-label="Timer sound" value={timerSound}
-        onchange={(e) => chooseSound("timer", e.currentTarget.value as any)}>
+        onchange={(e) => chooseSound("timer", e.currentTarget.value as SoundId)}>
         {#each SOUNDS as s}<option value={s.id}>{s.label}</option>{/each}
       </select>
       <button class="reset" onclick={() => playSound(timerSound)} aria-label="Preview timer sound">▶ Preview</button>
