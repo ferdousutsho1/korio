@@ -371,6 +371,8 @@ pub struct Category {
     pub created_at: i64,
 }
 
+/// One row of time-by-category. `category_id` is `None` for the Uncategorized bucket;
+/// `name`/`color`/`nature` are always materialized (COALESCE fallbacks in the query).
 #[derive(Debug, Serialize, Clone)]
 pub struct CategoryUsage {
     pub category_id: Option<i64>,
@@ -400,28 +402,32 @@ pub fn add_category(conn: &Connection, name: &str, color: &str, nature: &str) ->
 
 /// Update a category and re-sync the mirrored `kind` on all of its member apps.
 pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str, nature: &str) -> rusqlite::Result<()> {
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
         "UPDATE categories SET name = ?2, color = ?3, nature = ?4 WHERE id = ?1",
         rusqlite::params![id, name, color, nature],
     )?;
-    conn.execute(
+    tx.execute(
         "UPDATE apps SET kind = ?2 WHERE category_id = ?1",
         rusqlite::params![id, nature],
     )?;
-    Ok(())
+    tx.commit()
 }
 
 /// Delete a category; member apps revert to uncategorized + neutral.
 pub fn delete_category(conn: &Connection, id: i64) -> rusqlite::Result<()> {
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
         "UPDATE apps SET category_id = NULL, kind = 'neutral' WHERE category_id = ?1",
         [id],
     )?;
-    conn.execute("DELETE FROM categories WHERE id = ?1", [id])?;
-    Ok(())
+    tx.execute("DELETE FROM categories WHERE id = ?1", [id])?;
+    tx.commit()
 }
 
 /// Assign (or clear) an app's category and mirror `kind` to the category's nature.
+/// `category_id` must be `None` or a valid existing category id (callers pass ids from
+/// `list_categories`); an unknown id returns `QueryReturnedNoRows` and makes no change.
 pub fn set_app_category(conn: &Connection, app_id: i64, category_id: Option<i64>) -> rusqlite::Result<()> {
     let nature: String = match category_id {
         Some(cid) => conn.query_row("SELECT nature FROM categories WHERE id = ?1", [cid], |r| r.get(0))?,
