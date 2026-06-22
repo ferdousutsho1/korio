@@ -1,6 +1,7 @@
 <script lang="ts">
   import { presetRange, customRange, isoDate, type Preset, type Range } from "$lib/ranges";
-  let { onChange }: { onChange: (r: Range, label: string) => void } = $props();
+  let { onChange, initial = "today" }:
+    { onChange: (r: Range, label: string) => void; initial?: Preset | { from: string; to: string } } = $props();
 
   const presets: { id: Preset; label: string }[] = [
     { id: "today", label: "Today" },
@@ -8,9 +9,10 @@
     { id: "30d", label: "Last 30 days" },
     { id: "month", label: "This month" },
   ];
-  let activeId = $state<string>("7d");
-  let fromStr = $state(isoDate(presetRange("7d").from));
-  let toStr = $state(isoDate(presetRange("7d").to - 86400));
+  const isPreset = typeof initial === "string";
+  let activeId = $state<string>(isPreset ? initial : "custom");
+  let fromStr = $state(isPreset ? isoDate(presetRange(initial).from) : initial.from);
+  let toStr = $state(isPreset ? isoDate(presetRange(initial).to - 86400) : initial.to);
 
   function choose(p: Preset, label: string) {
     activeId = p;
