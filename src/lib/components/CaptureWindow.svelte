@@ -8,11 +8,12 @@
   let busy = $state(false);
 
   onMount(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.style.background = "transparent";
-      document.body.style.background = "transparent";
-    }
+    const html = document.documentElement, body = document.body;
+    const prevHtml = html.style.background, prevBody = body.style.background;
+    html.style.background = "transparent";
+    body.style.background = "transparent";
     input?.focus();
+    return () => { html.style.background = prevHtml; body.style.background = prevBody; };
   });
 
   async function close() { try { await hideCapture(); } catch { /* not in Tauri */ } }
@@ -57,7 +58,6 @@
 </div>
 
 <style>
-  :global(html), :global(body) { background: transparent !important; }
   .cap { font-family: var(--font-body); color: var(--text); height: 100vh; box-sizing: border-box;
     display: flex; flex-direction: column; gap: 10px; padding: 12px 14px;
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
