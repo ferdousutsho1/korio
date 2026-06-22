@@ -301,12 +301,30 @@ pub struct Task {
     pub created_at: i64,
 }
 
-pub fn add_task(conn: &Connection, title: &str) -> rusqlite::Result<i64> {
+/// Insert a task with an explicit creation timestamp; returns its id.
+pub fn add_task_at(conn: &Connection, title: &str, created_at: i64) -> rusqlite::Result<i64> {
     conn.execute(
         "INSERT INTO tasks (title, done, created_at) VALUES (?1, 0, ?2)",
-        rusqlite::params![title, now()],
+        rusqlite::params![title, created_at],
     )?;
     Ok(conn.last_insert_rowid())
+}
+
+pub fn add_task(conn: &Connection, title: &str) -> rusqlite::Result<i64> {
+    add_task_at(conn, title, now())
+}
+
+/// Tasks whose created_at is in [from, to). Active first, then oldest-first.
+pub fn list_tasks_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<Task>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, done, created_at FROM tasks
+         WHERE created_at >= ?1 AND created_at < ?2
+         ORDER BY done ASC, created_at ASC",
+    )?;
+    let rows = stmt.query_map(rusqlite::params![from, to], |r| Ok(Task {
+        id: r.get(0)?, title: r.get(1)?, done: r.get::<_, i64>(2)? != 0, created_at: r.get(3)?,
+    }))?;
+    rows.collect()
 }
 
 /// Active tasks first (done last), then oldest-first within each group.
@@ -662,6 +680,16 @@ mod tests {
         insert_site_session(&c, "reddit.com", 100, 200, 50).unwrap();
         assert_eq!(site_seconds_between(&c, "youtube.com", 0, 1000).unwrap(), 100);
         assert_eq!(site_seconds_between(&c, "youtube.com", 0, 250).unwrap(), 90);
+    }
+
+    #[test]
+    fn tasks_scoped_by_created_at_window() {
+        let c = open_in_memory().unwrap();
+        let a = add_task_at(&c, "morning", 1000).unwrap();
+        let _b = add_task_at(&c, "next day", 100_000).unwrap();
+        let day = list_tasks_between(&c, 0, 86_400).unwrap();
+        assert_eq!(day.len(), 1);
+        assert_eq!(day[0].id, a);
     }
 
     #[test]
