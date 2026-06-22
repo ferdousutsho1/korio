@@ -214,7 +214,8 @@ pub fn start(app: AppHandle) {
                             rt.active = Some(ActiveSite { domain: domain.clone(), updated_at: chrono::Utc::now().timestamp() });
                             rt.blocked.contains(&domain)
                         };
-                        let body = format!("{{\"blocked\":{}}}", blocked);
+                        let body = serde_json::to_string(&serde_json::json!({ "blocked": blocked }))
+                            .unwrap_or_else(|_| "{\"blocked\":false}".into());
                         let resp = tiny_http::Response::from_string(body)
                             .with_status_code(200)
                             .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())

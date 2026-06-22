@@ -7,9 +7,11 @@ async function config() {
 }
 
 async function report(url) {
-  const { token, port } = await config();
-  if (!token) return null; // not paired yet
+  // Never rejects: config (storage) + fetch failures are all swallowed so callers
+  // (incl. the fire-and-forget focus-lost path) can't produce unhandled rejections.
   try {
+    const { token, port } = await config();
+    if (!token) return null; // not paired yet
     const r = await fetch(`http://127.0.0.1:${port}/active`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
