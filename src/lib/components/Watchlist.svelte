@@ -17,7 +17,8 @@
 
   async function assignCategory(a: App, value: string) {
     const id = value === "" ? null : Number(value);
-    await setAppCategory(a.id, id);
+    try { await setAppCategory(a.id, id); }
+    catch (e) { console.error("setAppCategory failed", e); }
     await refresh();
   }
 
@@ -26,20 +27,28 @@
   let newNature = $state("neutral");
   let catErr = $state("");
 
+  function friendlyCatErr(e: unknown): string {
+    const s = String(e);
+    return s.includes("UNIQUE") ? "A category with that name already exists." : s;
+  }
+
   async function createCat() {
     const n = newName.trim();
     if (!n) return;
-    try { await addCategory(n, newColor, newNature); newName = ""; await refreshCats(); }
-    catch (e) { catErr = String(e); }
+    try { await addCategory(n, newColor, newNature); catErr = ""; newName = ""; await refreshCats(); }
+    catch (e) { catErr = friendlyCatErr(e); }
   }
 
   async function saveCat(c: Category, patch: Partial<Category>) {
     const next = { ...c, ...patch };
     try { await updateCategory(c.id, next.name.trim() || c.name, next.color, next.nature); catErr = ""; await refreshCats(); await refresh(); }
-    catch (e) { catErr = String(e); }
+    catch (e) { catErr = friendlyCatErr(e); }
   }
 
-  async function dropCat(c: Category) { await deleteCategory(c.id); await refreshCats(); await refresh(); }
+  async function dropCat(c: Category) {
+    try { await deleteCategory(c.id); catErr = ""; await refreshCats(); await refresh(); }
+    catch (e) { catErr = friendlyCatErr(e); }
+  }
 
   async function openPicker() {
     running = await runningApps();
@@ -104,7 +113,7 @@
             value={a.category_id == null ? "" : String(a.category_id)}
             onchange={(e) => assignCategory(a, e.currentTarget.value)}>
             <option value="">Uncategorized</option>
-            {#each categories as c}<option value={String(c.id)}>{c.name}</option>{/each}
+            {#each categories as c (c.id)}<option value={String(c.id)}>{c.name}</option>{/each}
           </select>
           <span class="limit">
             <input class="cap" type="number" min="0" step="5" value={Math.round(a.daily_cap_seconds / 60)}
@@ -141,9 +150,11 @@
 {/if}
 
 {#if managing}
-  <div class="modal" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) managing = false; }}>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cat-modal-title" tabindex="-1"
+    onclick={(e) => { if (e.target === e.currentTarget) managing = false; }}
+    onkeydown={(e) => { if (e.key === "Escape") managing = false; }}>
     <div class="sheet">
-      <h3>Categories</h3>
+      <h3 id="cat-modal-title">Categories</h3>
       {#if catErr}<p class="err">{catErr}</p>{/if}
       <ul class="cats">
         {#each categories as c (c.id)}
@@ -218,7 +229,7 @@
   .run button:hover { border-color: var(--line); background: var(--bg); }
   .rexe { font-weight: 600; font-size: 13px; }
   .rtitle { color: var(--muted); font-size: 12px; }
-  .cat { font: inherit; font-size: 12px; max-width: 130px; padding: 4px 6px;
+  .cat { font: inherit; font-size: 12px; max-width: 130px; flex-shrink: 0; padding: 4px 6px;
     border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .cats { list-style: none; padding: 0; margin: 0 0 14px; display: flex; flex-direction: column; gap: 6px; }
   .cats li, .newcat { display: flex; align-items: center; gap: 8px; }
