@@ -1,7 +1,7 @@
 <script lang="ts">
   import { presetRange, customRange, isoDate, type Preset, type Range } from "$lib/ranges";
   let { onChange, initial = "today" }:
-    { onChange: (r: Range, label: string) => void; initial?: Preset | { from: string; to: string } } = $props();
+    { onChange: (r: Range, label: string, preset: Preset | null) => void; initial?: Preset | { from: string; to: string } } = $props();
 
   const presets: { id: Preset; label: string }[] = [
     { id: "today", label: "Today" },
@@ -9,21 +9,20 @@
     { id: "30d", label: "Last 30 days" },
     { id: "month", label: "This month" },
   ];
-  const isPreset = typeof initial === "string";
-  let activeId = $state<string>(isPreset ? initial : "custom");
-  let fromStr = $state(isPreset ? isoDate(presetRange(initial).from) : initial.from);
-  let toStr = $state(isPreset ? isoDate(presetRange(initial).to - 86400) : initial.to);
+  let activeId = $state<string>(typeof initial === "string" ? initial : "custom");
+  let fromStr = $state(typeof initial === "string" ? isoDate(presetRange(initial).from) : initial.from);
+  let toStr = $state(typeof initial === "string" ? isoDate(presetRange(initial).to - 86400) : initial.to);
 
   function choose(p: Preset, label: string) {
     activeId = p;
     const r = presetRange(p);
     fromStr = isoDate(r.from);
     toStr = isoDate(r.to - 86400);
-    onChange(r, label);
+    onChange(r, label, p);
   }
   function applyCustom() {
     activeId = "custom";
-    onChange(customRange(fromStr, toStr), `${fromStr} → ${toStr}`);
+    onChange(customRange(fromStr, toStr), `${fromStr} → ${toStr}`, null);
   }
 </script>
 

@@ -30,14 +30,9 @@
   $effect(() => { range; loadRange(); });
   $effect(() => { selectedDay; loadDay(); });
 
-  function onRange(r: Range, label: string) {
+  function onRange(r: Range, label: string, preset: Preset | null) {
     range = r;
     rangeLabel = label;
-    // Recover the preset from the label set by RangePicker; custom shows "a → b".
-    const preset = (["Today", "Last 7 days", "Last 30 days", "This month"] as const)
-      .indexOf(label as any) >= 0
-      ? ({ Today: "today", "Last 7 days": "7d", "Last 30 days": "30d", "This month": "month" } as const)[label as "Today"]
-      : null;
     if (preset) writeJSON(KEY, { kind: "preset", preset, label });
     else writeJSON(KEY, { kind: "custom", from: isoDate(r.from), to: isoDate(r.to - 86400), label });
   }
