@@ -46,5 +46,5 @@ export function reconcile(saved: CardState[] | null): CardState[] {
   return out;
 }
 
-export function loadLayout(): CardState[] { return reconcile(readJSON<CardState[]>(KEY, null)); }
+export function loadLayout(): CardState[] { return reconcile(readJSON<CardState[] | null>(KEY, null)); }
 export function saveLayout(layout: CardState[]): void { writeJSON(KEY, layout); }
