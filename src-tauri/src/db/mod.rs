@@ -81,6 +81,15 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             target_seconds INTEGER NOT NULL,
             created_at     INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS site_sessions (
+            id         INTEGER PRIMARY KEY,
+            domain     TEXT NOT NULL,
+            started_at INTEGER NOT NULL,
+            ended_at   INTEGER NOT NULL,
+            seconds    INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_site_sessions_started ON site_sessions(started_at);
+        CREATE INDEX IF NOT EXISTS idx_site_sessions_domain ON site_sessions(domain);
         "#,
     )?;
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;

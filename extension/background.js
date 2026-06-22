@@ -32,3 +32,11 @@ chrome.windows.onFocusChanged.addListener((winId) => {
   if (winId === chrome.windows.WINDOW_ID_NONE) report(null); // browser lost focus
   else reportActiveTab();
 });
+
+// Heartbeat: re-report the active tab every 30s so Korio's ActiveSite stays fresh
+// while the user reads a static page (no tab/focus events fire then). chrome.alarms
+// wakes the MV3 service worker even after it has been suspended.
+chrome.alarms.create("korio-heartbeat", { periodInMinutes: 0.5 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "korio-heartbeat") reportActiveTab();
+});

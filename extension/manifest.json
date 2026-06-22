@@ -3,7 +3,7 @@
   "name": "Korio Site Reporter",
   "version": "0.1.0",
   "description": "Reports your active browser tab's domain to the local Korio app (127.0.0.1 only).",
-  "permissions": ["tabs", "storage"],
+  "permissions": ["tabs", "storage", "alarms"],
   "host_permissions": ["http://127.0.0.1/*"],
   "background": { "service_worker": "background.js" },
   "options_page": "options.html"

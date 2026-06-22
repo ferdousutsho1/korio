@@ -108,6 +108,25 @@ pub fn usage_range(state: State<AppState>, from: i64, to: i64) -> Result<Vec<Usa
 }
 
 #[tauri::command]
+pub fn site_usage_today(state: State<AppState>) -> Result<Vec<queries::SiteUsage>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let (from, to) = day_bounds_local();
+    queries::site_usage_between(&conn, from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn site_usage_range(state: State<AppState>, from: i64, to: i64) -> Result<Vec<queries::SiteUsage>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::site_usage_between(&conn, from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn clear_site(state: State<AppState>, domain: String) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::clear_site(&conn, &domain).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn daily_totals(state: State<AppState>, from: i64, to: i64) -> Result<Vec<DayTotal>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     let rows = queries::sessions_between(&conn, from, to).map_err(|e| e.to_string())?;
