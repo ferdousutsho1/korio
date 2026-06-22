@@ -16,6 +16,7 @@ export default defineConfig({
     environmentMatchGlobs: [
       // Tests that use localStorage need a browser-like environment.
       ["src/lib/prefs.test.ts", "happy-dom"],
+      ["src/lib/sound.test.ts", "happy-dom"],
     ],
     // A global guard so any future node-env test that touches localStorage degrades
     // gracefully (prefs.test.ts itself uses happy-dom and doesn't rely on this).
