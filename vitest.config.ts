@@ -13,5 +13,12 @@ export default defineConfig({
   test: {
     include: ["src/**/*.{test,spec}.ts"],
     environment: "node",
+    environmentMatchGlobs: [
+      // Tests that use localStorage need a browser-like environment.
+      ["src/lib/prefs.test.ts", "happy-dom"],
+    ],
+    // Polyfill Node 25's partial localStorage (no .clear()) with a full
+    // in-memory implementation so localStorage-using tests work in node env.
+    setupFiles: [fileURLToPath(new URL("./src/lib/__stubs__/localStorage.ts", import.meta.url))],
   },
 });
