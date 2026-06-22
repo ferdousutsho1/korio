@@ -249,6 +249,50 @@ pub fn clear_site(conn: &Connection, domain: &str) -> rusqlite::Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct SiteCap {
+    pub domain: String,
+    pub daily_cap_seconds: i64,
+    pub limit_action: String,
+}
+
+pub fn set_site_limit(conn: &Connection, domain: &str, daily_cap_seconds: i64, limit_action: &str)
+    -> rusqlite::Result<()> {
+    conn.execute(
+        "INSERT INTO sites (domain, daily_cap_seconds, limit_action) VALUES (?1, ?2, ?3)
+         ON CONFLICT(domain) DO UPDATE SET
+            daily_cap_seconds = excluded.daily_cap_seconds,
+            limit_action = excluded.limit_action",
+        rusqlite::params![domain, daily_cap_seconds, limit_action],
+    )?;
+    Ok(())
+}
+
+pub fn site_limits(conn: &Connection) -> rusqlite::Result<Vec<(String, i64, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT domain, daily_cap_seconds, limit_action FROM sites WHERE daily_cap_seconds > 0",
+    )?;
+    let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+    rows.collect()
+}
+
+pub fn list_site_caps(conn: &Connection) -> rusqlite::Result<Vec<SiteCap>> {
+    let mut stmt = conn.prepare("SELECT domain, daily_cap_seconds, limit_action FROM sites")?;
+    let rows = stmt.query_map([], |r| Ok(SiteCap {
+        domain: r.get(0)?, daily_cap_seconds: r.get(1)?, limit_action: r.get(2)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn site_seconds_between(conn: &Connection, domain: &str, from: i64, to: i64) -> rusqlite::Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(SUM(seconds), 0) FROM site_sessions
+         WHERE domain = ?1 AND started_at >= ?2 AND started_at < ?3",
+        rusqlite::params![domain, from, to],
+        |r| r.get(0),
+    )
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct Task {
     pub id: i64,
@@ -600,6 +644,24 @@ mod tests {
         let after = site_usage_between(&c, 0, 1000).unwrap();
         assert_eq!(after.len(), 1);
         assert_eq!(after[0].domain, "reddit.com");
+    }
+
+    #[test]
+    fn site_caps_upsert_list_and_filter() {
+        let c = crate::db::open_in_memory().unwrap();
+        set_site_limit(&c, "youtube.com", 1800, "warn").unwrap();
+        set_site_limit(&c, "reddit.com", 0, "warn").unwrap();
+        set_site_limit(&c, "youtube.com", 3600, "close").unwrap();
+        let capped = site_limits(&c).unwrap();
+        assert_eq!(capped.len(), 1);
+        assert_eq!(capped[0], ("youtube.com".to_string(), 3600, "close".to_string()));
+        let all = list_site_caps(&c).unwrap();
+        assert_eq!(all.len(), 2);
+        insert_site_session(&c, "youtube.com", 100, 200, 90).unwrap();
+        insert_site_session(&c, "youtube.com", 300, 400, 10).unwrap();
+        insert_site_session(&c, "reddit.com", 100, 200, 50).unwrap();
+        assert_eq!(site_seconds_between(&c, "youtube.com", 0, 1000).unwrap(), 100);
+        assert_eq!(site_seconds_between(&c, "youtube.com", 0, 250).unwrap(), 90);
     }
 
     #[test]
