@@ -8,12 +8,16 @@ use crate::limits::{self, Decision};
 use crate::AppState;
 use serde::Serialize;
 use session::{Sample, SessionTracker};
+use site::{SiteSample, SiteTracker};
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 const TICK_SECS: u64 = 1;
 const IDLE_THRESHOLD_SECS: u64 = 300; // 5 minutes (configurable in a later part)
+/// How recently the extension must have reported a domain for it to count.
+/// The extension heartbeats every 30s, so 90s tolerates a couple of missed beats.
+const SITE_STALE_SECS: i64 = 90;
 
 #[derive(Clone, Serialize)]
 pub struct LiveStatus {
@@ -57,6 +61,7 @@ pub fn spawn(app: AppHandle) {
             queries::watched_exes(&conn).unwrap_or_default()
         };
         let mut tracker = SessionTracker::new(initial.into_iter().collect::<HashSet<_>>());
+        let mut site_tracker = SiteTracker::new();
         let mut refresh_counter = 0u32;
         let mut limits_map: HashMap<String, (i64, String)> = HashMap::new();
 
@@ -104,6 +109,20 @@ pub fn spawn(app: AppHandle) {
                 None => (None, 0),
             };
             let _ = app.emit("live-status", LiveStatus { exe: live_exe, active_seconds: secs });
+
+            // --- Site (domain) tracking, parallel to app sessions ---
+            let focused_domain = if !idle && exe.as_deref().map(crate::browser::is_browser_exe).unwrap_or(false) {
+                crate::browser::current_fresh_domain(&app, SITE_STALE_SECS)
+            } else {
+                None
+            };
+            if let Some(finished) = site_tracker.observe(SiteSample { now, focused_domain }) {
+                if let Ok(conn) = state.db.lock() {
+                    let _ = queries::insert_site_session(
+                        &conn, &finished.domain, finished.started_at, finished.ended_at, finished.seconds,
+                    );
+                }
+            }
 
             if let Some((exe, sess_secs)) = tracker.current_exe().map(|(e, s)| (e.to_string(), s)) {
                 if let Some((cap, action)) = limits_map.get(&exe).cloned() {
