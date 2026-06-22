@@ -3,7 +3,6 @@
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
