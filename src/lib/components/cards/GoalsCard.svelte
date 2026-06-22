@@ -1,8 +1,9 @@
 <script lang="ts">
   import { goalsProgress } from "$lib/api";
   import type { GoalProgress } from "$lib/goals";
+  import { sessionTick } from "$lib/stores";
   let progress = $state<GoalProgress[]>([]);
-  $effect(() => { goalsProgress().then((p) => (progress = p)); });
+  $effect(() => { $sessionTick; goalsProgress().then((p) => (progress = p)); });
   let met = $derived(progress.filter((p) => p.met_today).length);
 </script>
 

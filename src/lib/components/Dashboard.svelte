@@ -27,7 +27,7 @@
 <div class="grid">
   {#each visible as c (c.id)}
     {@const Card = COMPONENTS[c.id]}
-    <div class="cell" class:wide={c.id === "focus_breakdown"}><Card /></div>
+    {#if Card}<div class="cell" class:wide={c.id === "focus_breakdown"}><Card /></div>{/if}
   {/each}
 </div>
 

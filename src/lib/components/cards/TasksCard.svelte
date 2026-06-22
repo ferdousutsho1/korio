@@ -1,9 +1,10 @@
 <script lang="ts">
   import { listTasks, type Task } from "$lib/api";
   import { dayStartLocal } from "$lib/ranges";
+  import { sessionTick } from "$lib/stores";
   let tasks = $state<Task[]>([]);
   const day = dayStartLocal(new Date());
-  $effect(() => { listTasks(day, day + 86400).then((t) => (tasks = t)); });
+  $effect(() => { $sessionTick; listTasks(day, day + 86400).then((t) => (tasks = t)); });
   let open = $derived(tasks.filter((t) => !t.done));
 </script>
 

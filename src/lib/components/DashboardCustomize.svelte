@@ -23,12 +23,14 @@
 <div class="overlay" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
   <div class="sheet">
     <h3>Customize dashboard</h3>
+    <!-- Reorder is pointer/drag only; visibility toggles are keyboard-accessible. -->
     <ul>
       {#each layout as c, i (c.id)}
         <li draggable="true"
           ondragstart={() => (dragIndex = i)}
           ondragover={(e) => e.preventDefault()}
-          ondrop={() => onDrop(i)}>
+          ondrop={() => onDrop(i)}
+          ondragend={() => (dragIndex = null)}>
           <span class="grip" aria-hidden="true">⠿</span>
           <span class="name">{title(c.id)}</span>
           <button class="vis" class:on={c.enabled} role="switch" aria-checked={c.enabled}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { listNotes, type Note } from "$lib/api";
+  import { sessionTick } from "$lib/stores";
   let notes = $state<Note[]>([]);
-  $effect(() => { listNotes().then((n) => (notes = n)); });
+  $effect(() => { $sessionTick; listNotes().then((n) => (notes = n)); });
 </script>
 
 <div class="card">
