@@ -33,7 +33,7 @@ export const daySessions = (from: number, to: number) =>
   invoke<SessionRow[]>("day_sessions", { from, to });
 
 export interface LimitEvent {
-  exe: string; display_name: string; cap_seconds: number; today_seconds: number;
+  kind: string; exe: string; display_name: string; cap_seconds: number; today_seconds: number;
 }
 export const setAppLimit = (id: number, daily_cap_seconds: number, limit_action: string) =>
   invoke<void>("set_app_limit", { id, dailyCapSeconds: daily_cap_seconds, limitAction: limit_action });
@@ -112,3 +112,12 @@ export const siteUsageToday = () => invoke<SiteUsage[]>("site_usage_today");
 export const siteUsageRange = (from: number, to: number) =>
   invoke<SiteUsage[]>("site_usage_range", { from, to });
 export const clearSite = (domain: string) => invoke<void>("clear_site", { domain });
+
+export interface SiteCap { domain: string; daily_cap_seconds: number; limit_action: string; }
+export const listSiteCaps = () => invoke<SiteCap[]>("list_site_caps");
+export const setSiteLimit = (domain: string, daily_cap_seconds: number, limit_action: string) =>
+  invoke<void>("set_site_limit", { domain, dailyCapSeconds: daily_cap_seconds, limitAction: limit_action });
+export const snoozeSiteLimit = (domain: string, minutes: number) =>
+  invoke<void>("snooze_site_limit", { domain, minutes });
+export const ignoreSiteLimit = (domain: string) => invoke<void>("ignore_site_limit", { domain });
+export const blockSite = (domain: string) => invoke<void>("block_site", { domain });

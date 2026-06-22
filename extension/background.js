@@ -7,22 +7,31 @@ async function config() {
 }
 
 async function report(url) {
-  const { token, port } = await config();
-  if (!token) return; // not paired yet
+  // Never rejects: config (storage) + fetch failures are all swallowed so callers
+  // (incl. the fire-and-forget focus-lost path) can't produce unhandled rejections.
   try {
-    await fetch(`http://127.0.0.1:${port}/active`, {
+    const { token, port } = await config();
+    if (!token) return null; // not paired yet
+    const r = await fetch(`http://127.0.0.1:${port}/active`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token, url: url || null }),
     });
-  } catch (_) { /* Korio not running / feature off — ignore silently */ }
+    if (!r.ok) return null;
+    const ct = r.headers.get("content-type") || "";
+    return ct.includes("application/json") ? await r.json() : null;
+  } catch (_) { return null; } // Korio not running / feature off — ignore
 }
 
 async function reportActiveTab() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     const url = tab && /^https?:/.test(tab.url || "") ? tab.url : null;
-    await report(url);
+    const res = await report(url);
+    if (res && res.blocked && tab && tab.id != null) {
+      // Domain is over its Auto-close cap → close this tab (never the whole browser).
+      try { await chrome.tabs.remove(tab.id); } catch (_) {}
+    }
   } catch (_) { await report(null); }
 }
 

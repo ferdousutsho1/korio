@@ -27,6 +27,7 @@ pub struct LiveStatus {
 
 #[derive(Clone, Serialize)]
 pub struct LimitEvent {
+    pub kind: String, // "app" | "site"
     pub exe: String,
     pub display_name: String,
     pub cap_seconds: i64,
@@ -64,6 +65,8 @@ pub fn spawn(app: AppHandle) {
         let mut site_tracker = SiteTracker::new();
         let mut refresh_counter = 0u32;
         let mut limits_map: HashMap<String, (i64, String)> = HashMap::new();
+        let mut site_limits_map: HashMap<String, (i64, String)> = HashMap::new();
+        let mut site_day: i64 = 0;
 
         loop {
             std::thread::sleep(Duration::from_secs(TICK_SECS));
@@ -78,6 +81,9 @@ pub fn spawn(app: AppHandle) {
                     }
                     if let Ok(list) = queries::app_limits(&conn) {
                         limits_map = list.into_iter().map(|(e, c, a)| (e, (c, a))).collect();
+                    }
+                    if let Ok(list) = queries::site_limits(&conn) {
+                        site_limits_map = list.into_iter().map(|(d, c, a)| (d, (c, a))).collect();
                     }
                 }
 
@@ -124,6 +130,43 @@ pub fn spawn(app: AppHandle) {
                 }
             }
 
+            // --- Per-site limit evaluation (parallel to app limits) ---
+            // Clear the blocked set when the local day rolls over.
+            let s_day = local_today_start();
+            if s_day != site_day {
+                site_day = s_day;
+                if let Ok(mut b) = state.browser.lock() { b.blocked.clear(); }
+            }
+            if let Some((domain, sess_secs)) = site_tracker.current_domain().map(|(d, s)| (d.to_string(), s)) {
+                if let Some((cap, action)) = site_limits_map.get(&domain).cloned() {
+                    let today_db = state.db.lock().ok().and_then(|c|
+                        queries::site_seconds_between(&c, &domain, s_day, s_day + 86_400).ok()
+                    ).unwrap_or(0);
+                    let today = today_db + sess_secs;
+                    let now_unix = chrono::Utc::now().timestamp();
+                    let decision = if let Ok(mut rt) = state.site_limits.lock() {
+                        rt.reset_if_new_day(s_day);
+                        let st = rt.state_mut(&domain);
+                        let d = limits::decide(today, cap, &action, st, now_unix);
+                        if d != Decision::None { st.warned = true; }
+                        d
+                    } else { Decision::None };
+                    match decision {
+                        Decision::Warn => {
+                            let _ = app.emit("limit-reached", LimitEvent {
+                                kind: "site".into(), exe: domain.clone(), display_name: domain.clone(),
+                                cap_seconds: cap, today_seconds: today,
+                            });
+                        }
+                        Decision::Close => {
+                            if let Ok(mut b) = state.browser.lock() { b.blocked.insert(domain.clone()); }
+                            let _ = app.emit("limit-closed", &domain);
+                        }
+                        Decision::None => {}
+                    }
+                }
+            }
+
             if let Some((exe, sess_secs)) = tracker.current_exe().map(|(e, s)| (e.to_string(), s)) {
                 if let Some((cap, action)) = limits_map.get(&exe).cloned() {
                     let day_start = local_today_start();
@@ -143,7 +186,7 @@ pub fn spawn(app: AppHandle) {
                         Decision::Warn => {
                             let name = display_name_for(&state, &exe).unwrap_or_else(|| exe.clone());
                             let _ = app.emit("limit-reached", LimitEvent {
-                                exe: exe.clone(), display_name: name, cap_seconds: cap, today_seconds: today,
+                                kind: "app".into(), exe: exe.clone(), display_name: name, cap_seconds: cap, today_seconds: today,
                             });
                         }
                         Decision::Close => {

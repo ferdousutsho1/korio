@@ -21,6 +21,7 @@ pub struct AppState {
     pub db: Mutex<Connection>,
     pub limits: Mutex<crate::limits::LimitRuntime>,
     pub browser: Mutex<crate::browser::BrowserRuntime>,
+    pub site_limits: Mutex<crate::limits::LimitRuntime>,
 }
 
 /// Portable mode: korio.db next to the exe if that directory looks writable;
@@ -69,6 +70,7 @@ pub fn run() {
             db: Mutex::new(conn),
             limits: Mutex::new(crate::limits::LimitRuntime::new()),
             browser: Mutex::new(crate::browser::BrowserRuntime::default()),
+            site_limits: Mutex::new(crate::limits::LimitRuntime::new()),
         })
         .invoke_handler(tauri::generate_handler![
             crate::commands::list_apps,
@@ -120,6 +122,11 @@ pub fn run() {
             crate::commands::site_usage_today,
             crate::commands::site_usage_range,
             crate::commands::clear_site,
+            crate::commands::list_site_caps,
+            crate::commands::set_site_limit,
+            crate::commands::snooze_site_limit,
+            crate::commands::ignore_site_limit,
+            crate::commands::block_site,
         ])
         .setup(|app| {
             build_tray(app.handle())?;

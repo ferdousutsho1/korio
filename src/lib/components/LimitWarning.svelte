@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { browser } from "$app/environment";
   import { listen } from "@tauri-apps/api/event";
-  import { snoozeLimit, ignoreLimit, forceClose, type LimitEvent } from "$lib/api";
+  import { snoozeLimit, ignoreLimit, forceClose, snoozeSiteLimit, ignoreSiteLimit, blockSite, type LimitEvent } from "$lib/api";
   import { formatDuration } from "$lib/format";
 
   let current = $state<LimitEvent | null>(null);
@@ -19,9 +19,24 @@
     return () => unlistens.forEach((u) => u());
   });
 
-  async function snooze() { if (current) { await snoozeLimit(current.exe, 10); current = null; } }
-  async function ignore() { if (current) { await ignoreLimit(current.exe); current = null; } }
-  async function close() { if (current) { await forceClose(current.exe); current = null; } }
+  async function snooze() {
+    if (!current) return;
+    if (current.kind === "site") await snoozeSiteLimit(current.exe, 10);
+    else await snoozeLimit(current.exe, 10);
+    current = null;
+  }
+  async function ignore() {
+    if (!current) return;
+    if (current.kind === "site") await ignoreSiteLimit(current.exe);
+    else await ignoreLimit(current.exe);
+    current = null;
+  }
+  async function close() {
+    if (!current) return;
+    if (current.kind === "site") await blockSite(current.exe);
+    else await forceClose(current.exe);
+    current = null;
+  }
 
   function onKey(e: KeyboardEvent) { if (e.key === "Escape" && current) ignore(); }
 </script>
@@ -38,7 +53,7 @@
       <div class="actions">
         <button onclick={snooze}>Snooze 10 min</button>
         <button onclick={ignore}>Ignore today</button>
-        <button class="danger" onclick={close}>Close app</button>
+        <button class="danger" onclick={close}>{current.kind === "site" ? "Close tab" : "Close app"}</button>
       </div>
     </div>
   </div>
