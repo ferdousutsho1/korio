@@ -63,8 +63,10 @@
       {#each apps as a}
         <li>
           <span class="dot" style={`background:${a.color}`}></span>
-          <span class="name">{a.display_name}</span>
-          <span class="exe">{a.exe_name}</span>
+          <span class="who">
+            <span class="name">{a.display_name}</span>
+            <span class="exe">{a.exe_name}</span>
+          </span>
           <button class="launch" onclick={() => launchApp(a.id)}
             title="Launch {a.display_name}" aria-label="Launch {a.display_name}">▷</button>
           <span class="limit">
@@ -118,10 +120,12 @@
   .exe { color: var(--muted); font-size: 12px; }
   .x { border: none; background: transparent; color: var(--muted);
     font-size: 20px; cursor: pointer; line-height: 1; }
-  .launch { margin-left: auto; border: 1px solid var(--line); background: var(--surface); color: var(--text);
+  .who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .who .name, .who .exe { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .launch { border: 1px solid var(--line); background: var(--surface); color: var(--text);
     width: 30px; height: 28px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; line-height: 1; }
   .launch:hover { border-color: var(--accent); color: var(--accent); }
-  .limit { display: flex; align-items: center; gap: 6px; }
+  .limit { display: flex; align-items: center; gap: 6px; margin-left: 12px; }
   .cap { width: 52px; font: inherit; font-size: 12px; padding: 4px 6px; text-align: right;
     border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .unit { color: var(--muted); font-size: 11px; }
