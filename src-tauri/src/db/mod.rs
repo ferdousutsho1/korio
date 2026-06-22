@@ -30,9 +30,12 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         r#"
         PRAGMA journal_mode = WAL;
         CREATE TABLE IF NOT EXISTS categories (
-            id    INTEGER PRIMARY KEY,
-            name  TEXT NOT NULL,
-            kind  TEXT NOT NULL CHECK (kind IN ('productive','neutral','distracting'))
+            id         INTEGER PRIMARY KEY,
+            name       TEXT NOT NULL UNIQUE,
+            color      TEXT NOT NULL,
+            nature     TEXT NOT NULL DEFAULT 'neutral'
+                        CHECK (nature IN ('productive','neutral','distracting')),
+            created_at INTEGER NOT NULL
         );
         CREATE TABLE IF NOT EXISTS apps (
             id                INTEGER PRIMARY KEY,
@@ -101,6 +104,24 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;
     add_column_if_missing(conn, "apps", "limit_action", "TEXT NOT NULL DEFAULT 'warn'")?;
     add_column_if_missing(conn, "apps", "exe_path", "TEXT")?;
+
+    // One-time seed of default categories (gated so deleting them all doesn't resurrect them).
+    if crate::db::queries::get_setting(conn, "categories_seeded")?.is_none() {
+        let now = chrono::Utc::now().timestamp();
+        for (name, color, nature) in [
+            ("Productivity", "#2F6E4F", "productive"),
+            ("Development", "#3A6EA5", "productive"),
+            ("Communication", "#7A6F5C", "neutral"),
+            ("Entertainment", "#B23A48", "distracting"),
+        ] {
+            conn.execute(
+                "INSERT INTO categories (name, color, nature, created_at) VALUES (?1, ?2, ?3, ?4)",
+                rusqlite::params![name, color, nature, now],
+            )?;
+        }
+        crate::db::queries::set_setting(conn, "categories_seeded", "true")?;
+    }
+    add_column_if_missing(conn, "apps", "category_id", "INTEGER")?;
     Ok(())
 }
 
