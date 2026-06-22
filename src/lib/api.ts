@@ -106,3 +106,9 @@ export interface BrowserStatus {
 export const browserStatus = () => invoke<BrowserStatus>("browser_status");
 export const setBrowserEnabled = (enabled: boolean) =>
   invoke<void>("set_browser_enabled", { enabled });
+
+export interface SiteUsage { domain: string; seconds: number; }
+export const siteUsageToday = () => invoke<SiteUsage[]>("site_usage_today");
+export const siteUsageRange = (from: number, to: number) =>
+  invoke<SiteUsage[]>("site_usage_range", { from, to });
+export const clearSite = (domain: string) => invoke<void>("clear_site", { domain });
