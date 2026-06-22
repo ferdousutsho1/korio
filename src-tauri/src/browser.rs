@@ -49,6 +49,14 @@ pub fn registrable_domain(raw: &str) -> Option<String> {
     psl::domain_str(&host).map(|d| d.to_string())
 }
 
+/// Recognized Chromium-family browser executables (lower-cased comparison).
+pub fn is_browser_exe(exe: &str) -> bool {
+    matches!(
+        exe.to_ascii_lowercase().as_str(),
+        "chrome.exe" | "msedge.exe" | "brave.exe" | "vivaldi.exe" | "opera.exe" | "chromium.exe" | "arc.exe"
+    )
+}
+
 /// Return the persisted extension token, generating + storing one on first use.
 pub fn ensure_token(conn: &Connection) -> rusqlite::Result<String> {
     if let Some(t) = crate::db::queries::get_setting(conn, "browser_token")? {
@@ -105,6 +113,19 @@ fn port_of(app: &AppHandle) -> u16 {
     let conn = match state.db.lock() { Ok(c) => c, Err(_) => return DEFAULT_PORT };
     crate::db::queries::get_setting(&conn, "browser_port").ok().flatten()
         .and_then(|s| s.parse().ok()).unwrap_or(DEFAULT_PORT)
+}
+
+/// The currently-reported domain, but only if updated within `max_age_secs`.
+/// None when the feature is off, no site is active, or the report is stale.
+pub fn current_fresh_domain(app: &AppHandle, max_age_secs: i64) -> Option<String> {
+    let state = app.state::<AppState>();
+    let rt = state.browser.lock().ok()?;
+    let a = rt.active.as_ref()?;
+    if chrono::Utc::now().timestamp() - a.updated_at <= max_age_secs {
+        Some(a.domain.clone())
+    } else {
+        None
+    }
 }
 
 /// Start the loopback server on a background thread if not already running.
@@ -277,6 +298,16 @@ mod tests {
         assert_eq!(a.len(), 32); // 16 random bytes hex-encoded
         let b = ensure_token(&conn).unwrap();
         assert_eq!(a, b); // second call returns the same persisted token
+    }
+
+    #[test]
+    fn recognizes_browser_exes() {
+        assert!(is_browser_exe("chrome.exe"));
+        assert!(is_browser_exe("msedge.exe"));
+        assert!(is_browser_exe("brave.exe"));
+        assert!(is_browser_exe("CHROME.EXE"));
+        assert!(!is_browser_exe("code.exe"));
+        assert!(!is_browser_exe("explorer.exe"));
     }
 
     #[test]
