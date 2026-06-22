@@ -174,36 +174,54 @@ pub fn start(app: AppHandle) {
                 continue;
             }
             if method == tiny_http::Method::Get && url.starts_with("/blocked") {
-                // 3a placeholder: nothing is ever blocked yet.
-                let body = "[]";
+                let authed = url.split('?').nth(1)
+                    .map(|q| q.split('&').any(|kv| kv == format!("token={token}")))
+                    .unwrap_or(false);
+                if !authed {
+                    let _ = req.respond(cors(tiny_http::Response::empty(401)));
+                    continue;
+                }
+                let list: Vec<String> = {
+                    let st = app.state::<AppState>();
+                    let rt = st.browser.lock();
+                    rt.map(|r| r.blocked.iter().cloned().collect()).unwrap_or_default()
+                };
+                let body = serde_json::to_string(&list).unwrap_or_else(|_| "[]".into());
                 let resp = tiny_http::Response::from_string(body)
                     .with_status_code(200)
-                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap());
-                let _ = req.respond(resp.with_header(
-                    tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap()));
+                    .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())
+                    .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
+                let _ = req.respond(resp);
                 continue;
             }
             if method == tiny_http::Method::Post && url.starts_with("/active") {
                 let mut body = String::new();
                 let _ = req.as_reader().read_to_string(&mut body);
-                let outcome = evaluate_active(&token, &body);
-                let code = match outcome {
-                    ActiveOutcome::Unauthorized => 401,
-                    ActiveOutcome::Bad => 400,
-                    ActiveOutcome::Set(domain) => {
-                        let state = app.state::<AppState>();
-                        if let Ok(mut rt) = state.browser.lock() {
-                            rt.active = Some(ActiveSite { domain, updated_at: chrono::Utc::now().timestamp() });
-                        }
-                        204
-                    }
+                match evaluate_active(&token, &body) {
+                    ActiveOutcome::Unauthorized => { let _ = req.respond(cors(tiny_http::Response::empty(401))); }
+                    ActiveOutcome::Bad => { let _ = req.respond(cors(tiny_http::Response::empty(400))); }
                     ActiveOutcome::Clear => {
-                        let state = app.state::<AppState>();
-                        if let Ok(mut rt) = state.browser.lock() { rt.active = None; }
-                        204
+                        if let Ok(mut rt) = app.state::<AppState>().browser.lock() { rt.active = None; }
+                        let _ = req.respond(cors(tiny_http::Response::empty(204)));
                     }
-                };
-                let _ = req.respond(cors(tiny_http::Response::empty(code)));
+                    ActiveOutcome::Set(domain) => {
+                        let blocked = {
+                            let st = app.state::<AppState>();
+                            let mut rt = match st.browser.lock() {
+                                Ok(r) => r,
+                                Err(_) => { let _ = req.respond(cors(tiny_http::Response::empty(204))); continue; }
+                            };
+                            rt.active = Some(ActiveSite { domain: domain.clone(), updated_at: chrono::Utc::now().timestamp() });
+                            rt.blocked.contains(&domain)
+                        };
+                        let body = format!("{{\"blocked\":{}}}", blocked);
+                        let resp = tiny_http::Response::from_string(body)
+                            .with_status_code(200)
+                            .with_header(tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap())
+                            .with_header(tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap());
+                        let _ = req.respond(resp);
+                    }
+                }
                 continue;
             }
             let _ = req.respond(cors(tiny_http::Response::empty(404)));
