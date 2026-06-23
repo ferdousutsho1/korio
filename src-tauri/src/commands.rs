@@ -495,6 +495,12 @@ pub fn usage_by_category(state: State<AppState>, from: i64, to: i64) -> Result<V
 }
 
 #[tauri::command]
+pub fn set_note_size(state: State<AppState>, id: i64, width: i64, height: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_note_size(&conn, id, width.max(0), height.max(0)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn clear_alert_topmost(app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
     if let Some(w) = app.get_webview_window("main") {

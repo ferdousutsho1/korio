@@ -140,6 +140,7 @@ pub fn run() {
             crate::commands::delete_category,
             crate::commands::set_app_category,
             crate::commands::usage_by_category,
+            crate::commands::set_note_size,
             crate::commands::clear_alert_topmost,
         ])
         .setup(|app| {
