@@ -9,7 +9,7 @@
   import { hasPin, setPin, clearPin } from "$lib/api";
   import { ensureNotificationPermission } from "$lib/digest";
   import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
-  import { SOUNDS, getSoundPref, setSoundPref, playSound, type SoundType, type SoundId } from "$lib/sound";
+  import { SOUNDS, getSoundPref, setSoundPref, playSound, getLoopPref, setLoopPref, type SoundType, type SoundId } from "$lib/sound";
 
   let pomoSound = $state(getSoundPref("pomodoro"));
   let timerSound = $state(getSoundPref("timer"));
@@ -17,6 +17,15 @@
     setSoundPref(type, id);
     if (type === "pomodoro") pomoSound = id; else timerSound = id;
     playSound(id);
+  }
+
+  let limitSound = $state(getSoundPref("limit"));
+  let pomoLoop = $state(getLoopPref("pomodoro"));
+  let timerLoop = $state(getLoopPref("timer"));
+  function chooseLimit(id: SoundId) { setSoundPref("limit", id); limitSound = id; playSound(id); }
+  function toggleLoop(t: "pomodoro" | "timer") {
+    if (t === "pomodoro") { pomoLoop = !pomoLoop; setLoopPref("pomodoro", pomoLoop); }
+    else { timerLoop = !timerLoop; setLoopPref("timer", timerLoop); }
   }
 
   let dataMsg = $state("");
@@ -190,6 +199,29 @@
         {#each SOUNDS as s}<option value={s.id}>{s.label}</option>{/each}
       </select>
       <button class="reset" onclick={() => playSound(timerSound)} aria-label="Preview timer sound">▶ Preview</button>
+    </div>
+  </div>
+  <div class="row">
+    <div class="text"><div class="name">Loop Pomodoro sound</div>
+      <div class="help">Repeat until you press a Pomodoro button or Stop.</div></div>
+    <button class="sw" class:on={pomoLoop} role="switch" aria-checked={pomoLoop}
+      aria-label="Loop pomodoro sound" onclick={() => toggleLoop("pomodoro")}><span class="knob"></span></button>
+  </div>
+  <div class="row">
+    <div class="text"><div class="name">Loop Timer sound</div>
+      <div class="help">Repeat until you press Start/Reset or Stop.</div></div>
+    <button class="sw" class:on={timerLoop} role="switch" aria-checked={timerLoop}
+      aria-label="Loop timer sound" onclick={() => toggleLoop("timer")}><span class="knob"></span></button>
+  </div>
+  <div class="row">
+    <div class="text"><div class="name">Limit alert sound</div>
+      <div class="help">Plays (looping) when an app or site passes its daily limit, until you respond.</div></div>
+    <div class="seg">
+      <select aria-label="Limit alert sound" value={limitSound}
+        onchange={(e) => chooseLimit(e.currentTarget.value as SoundId)}>
+        {#each SOUNDS as s}<option value={s.id}>{s.label}</option>{/each}
+      </select>
+      <button class="reset" onclick={() => playSound(limitSound)} aria-label="Preview limit sound">▶ Preview</button>
     </div>
   </div>
 
