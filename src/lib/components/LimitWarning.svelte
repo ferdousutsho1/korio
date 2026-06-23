@@ -1,17 +1,29 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { browser } from "$app/environment";
   import { listen } from "@tauri-apps/api/event";
-  import { snoozeLimit, ignoreLimit, forceClose, snoozeSiteLimit, ignoreSiteLimit, blockSite, type LimitEvent } from "$lib/api";
+  import { snoozeLimit, ignoreLimit, forceClose, snoozeSiteLimit, ignoreSiteLimit, blockSite, clearAlertTopmost, type LimitEvent } from "$lib/api";
+  import { startLoop, stopAllSounds, getSoundPref } from "$lib/sound";
   import { formatDuration } from "$lib/format";
 
   let current = $state<LimitEvent | null>(null);
   let closedToast = $state<string | null>(null);
 
+  let stopLoop: (() => void) | null = null;
+  function endAlert() {
+    stopLoop?.(); stopLoop = null;
+    clearAlertTopmost().catch(() => {});
+  }
+  onDestroy(() => stopAllSounds());
+
   onMount(() => {
     if (!browser) return;
     const unlistens: Array<() => void> = [];
-    listen<LimitEvent>("limit-reached", (e) => { current = e.payload; }).then((u) => unlistens.push(u));
+    listen<LimitEvent>("limit-reached", (e) => {
+      current = e.payload;
+      stopLoop?.();
+      stopLoop = startLoop(getSoundPref("limit"));
+    }).then((u) => unlistens.push(u));
     listen<string>("limit-closed", (e) => {
       closedToast = e.payload;
       setTimeout(() => { if (closedToast === e.payload) closedToast = null; }, 4000);
@@ -23,19 +35,19 @@
     if (!current) return;
     if (current.kind === "site") await snoozeSiteLimit(current.exe, 10);
     else await snoozeLimit(current.exe, 10);
-    current = null;
+    endAlert(); current = null;
   }
   async function ignore() {
     if (!current) return;
     if (current.kind === "site") await ignoreSiteLimit(current.exe);
     else await ignoreLimit(current.exe);
-    current = null;
+    endAlert(); current = null;
   }
   async function close() {
     if (!current) return;
     if (current.kind === "site") await blockSite(current.exe);
     else await forceClose(current.exe);
-    current = null;
+    endAlert(); current = null;
   }
 
   function onKey(e: KeyboardEvent) { if (e.key === "Escape" && current) ignore(); }

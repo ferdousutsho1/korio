@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { siteUsageRange, clearSite, colorFor, listSiteCaps, setSiteLimit, type SiteUsage, type SiteCap } from "$lib/api";
   import { formatDuration } from "$lib/format";
+  import { readJSON, writeJSON } from "$lib/prefs";
 
   type RangeId = "today" | "7d" | "30d";
   let range = $state<RangeId>("today");
@@ -48,6 +49,12 @@
     await load();
   }
 
+  let minSeconds = $state<number>(readJSON<number>("korio.sites.minSeconds", 0));
+  function setMin(v: number) { minSeconds = v; writeJSON("korio.sites.minSeconds", v); }
+  // Visible rows: at/above threshold, OR has a configured cap (never hide a limit you set).
+  let visible = $derived(rows.filter((r) => r.seconds >= minSeconds || r.cap > 0));
+  let visibleTotal = $derived(visible.reduce((a, r) => a + r.seconds, 0));
+
   let max = $derived(rows.reduce((m, s) => Math.max(m, s.seconds), 0));
   let total = $derived(rows.reduce((a, s) => a + s.seconds, 0));
 
@@ -61,16 +68,30 @@
       <button class:on={range === "7d"} onclick={() => setRange("7d")}>7 days</button>
       <button class:on={range === "30d"} onclick={() => setRange("30d")}>30 days</button>
     </div>
-    <span class="total">{formatDuration(total)} total</span>
+    <div class="barright">
+      <label class="minlbl">Hide under
+        <select aria-label="Hide sites under" value={String(minSeconds)}
+          onchange={(e) => setMin(+e.currentTarget.value)}>
+          <option value="0">Off</option>
+          <option value="60">1m</option>
+          <option value="300">5m</option>
+          <option value="600">10m</option>
+          <option value="1800">30m</option>
+        </select>
+      </label>
+      <span class="total">{formatDuration(visibleTotal)} total</span>
+    </div>
   </div>
 
   {#if loading}
     <p class="empty">Loading…</p>
   {:else if rows.length === 0}
     <p class="empty">No site activity tracked in this range. Enable Browser tracking in Settings and install the Korio extension.</p>
+  {:else if visible.length === 0}
+    <p class="empty">All tracked sites are under the "hide under" threshold. Lower it to see them.</p>
   {:else}
     <ul>
-      {#each rows as s, i (s.domain)}
+      {#each visible as s, i (s.domain)}
         <li>
           <span class="name" title={s.domain}>{s.domain}</span>
           <span class="track"><span class="fill" style={`width:${max > 0 ? (s.seconds / max) * 100 : 0}%;background:${colorFor(i)}`}></span></span>
@@ -116,4 +137,8 @@
   .del { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px;
     padding: 4px 6px; border-radius: var(--radius-sm); }
   .del:hover { color: var(--accent); background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .barright { display: flex; align-items: center; gap: 14px; }
+  .minlbl { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .minlbl select { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line);
+    border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
 </style>

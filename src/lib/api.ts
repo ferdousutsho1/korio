@@ -85,12 +85,15 @@ export const clearDoneTasks = () => invoke<void>("clear_done_tasks");
 export interface Note {
   id: number; title: string; body: string; color: string;
   due: string | null; created_at: number; updated_at: number;
+  width: number | null; height: number | null;
 }
 export const listNotes = () => invoke<Note[]>("list_notes");
 export const addNote = () => invoke<number>("add_note");
 export const updateNote = (n: { id: number; title: string; body: string; color: string; due: string | null }) =>
   invoke<void>("update_note", { id: n.id, title: n.title, body: n.body, color: n.color, due: n.due });
 export const deleteNote = (id: number) => invoke<void>("delete_note", { id });
+export const setNoteSize = (id: number, width: number, height: number) =>
+  invoke<void>("set_note_size", { id, width, height });
 
 
 export const listGoals = () => invoke<Goal[]>("list_goals");
@@ -130,3 +133,5 @@ export const snoozeSiteLimit = (domain: string, minutes: number) =>
   invoke<void>("snooze_site_limit", { domain, minutes });
 export const ignoreSiteLimit = (domain: string) => invoke<void>("ignore_site_limit", { domain });
 export const blockSite = (domain: string) => invoke<void>("block_site", { domain });
+
+export const clearAlertTopmost = () => invoke<void>("clear_alert_topmost");

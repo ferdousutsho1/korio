@@ -15,10 +15,17 @@
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
   import { navIntent } from "$lib/nav";
+  import { hiddenSections } from "$lib/sidebar";
   import CaptureWindow from "$lib/components/CaptureWindow.svelte";
   const captureMode = browser && new URLSearchParams(location.search).has("capture");
   let active = $state("dashboard");
   onMount(() => navIntent.subscribe((v) => { if (v) { active = v; navIntent.set(null); } }));
+  $effect(() => {
+    if ($hiddenSections.includes(active)) {
+      const order = ["dashboard","stats","watchlist","sites","tools","tasks","notes","goals","settings"];
+      active = order.find((id) => !$hiddenSections.includes(id)) ?? "settings";
+    }
+  });
 </script>
 
 {#if captureMode}

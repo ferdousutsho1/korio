@@ -153,6 +153,7 @@ pub fn spawn(app: AppHandle) {
                     } else { Decision::None };
                     match decision {
                         Decision::Warn => {
+                            crate::surface_main(&app);
                             let _ = app.emit("limit-reached", LimitEvent {
                                 kind: "site".into(), exe: domain.clone(), display_name: domain.clone(),
                                 cap_seconds: cap, today_seconds: today,
@@ -184,6 +185,7 @@ pub fn spawn(app: AppHandle) {
                     } else { Decision::None };
                     match decision {
                         Decision::Warn => {
+                            crate::surface_main(&app);
                             let name = display_name_for(&state, &exe).unwrap_or_else(|| exe.clone());
                             let _ = app.emit("limit-reached", LimitEvent {
                                 kind: "app".into(), exe: exe.clone(), display_name: name, cap_seconds: cap, today_seconds: today,
