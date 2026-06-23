@@ -130,3 +130,5 @@ export const snoozeSiteLimit = (domain: string, minutes: number) =>
   invoke<void>("snooze_site_limit", { domain, minutes });
 export const ignoreSiteLimit = (domain: string) => invoke<void>("ignore_site_limit", { domain });
 export const blockSite = (domain: string) => invoke<void>("block_site", { domain });
+
+export const clearAlertTopmost = () => invoke<void>("clear_alert_topmost");
