@@ -1,6 +1,10 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { getVersion } from "@tauri-apps/api/app";
   import { hiddenSections } from "$lib/sidebar";
   let { active, onNavigate }: { active: string; onNavigate: (id: string) => void } = $props();
+  let version = $state("");
+  onMount(() => { getVersion().then((v) => (version = v)).catch(() => {}); });
   const items = [
     { id: "dashboard", glyph: "◷", label: "Dashboard" },
     { id: "stats", glyph: "▤", label: "Stats" },
@@ -22,6 +26,7 @@
       <span class="g">{it.glyph}</span><span class="l">{it.label}</span>
     </button>
   {/each}
+  <div class="ver" title="Korio version">{version ? `Korio v${version}` : ""}</div>
 </nav>
 
 <style>
@@ -35,4 +40,6 @@
   button:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
   button.on { color: var(--accent-contrast); background: var(--accent); }
   .g { width: 18px; text-align: center; }
+  .ver { margin-top: auto; padding: 12px 10px 2px; font-size: 11px; color: var(--muted);
+    letter-spacing: .3px; font-variant-numeric: tabular-nums; }
 </style>
