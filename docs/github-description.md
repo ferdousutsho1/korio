@@ -6,7 +6,9 @@
 
 <div align="center">
 
-<img src="docs/assets/logo.svg" alt="Korio" width="340" />
+<img src="docs/assets/logo.svg" alt="Korio" width="140" />
+
+# Korio
 
 ### Track your focus. Understand your time. Work smarter, not harder.
 
