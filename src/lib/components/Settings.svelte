@@ -3,7 +3,7 @@
   import { getSettings, setSetting } from "$lib/api";
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
-  import { hiddenSections, toggleSection } from "$lib/sidebar";
+  import { hiddenSections, toggleSection, hideAllButSettings, showAll } from "$lib/sidebar";
   import { save, open } from "@tauri-apps/plugin-dialog";
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
@@ -53,7 +53,12 @@
     if (typeof path === "string") { await restoreDb(path); dataMsg = "Restored. Reopen views to see changes."; }
   }
 
-  const navOptions = [{ id: "stats", label: "Stats" }, { id: "watchlist", label: "Watchlist" }];
+  const navOptions = [
+    { id: "dashboard", label: "Dashboard" }, { id: "stats", label: "Stats" },
+    { id: "watchlist", label: "Watchlist" }, { id: "sites", label: "Sites" },
+    { id: "tools", label: "Tools" }, { id: "tasks", label: "Tasks" },
+    { id: "notes", label: "Notes" }, { id: "goals", label: "Goals" },
+  ];
 
   type Toggle = { key: string; label: string; help: string; def: boolean };
   const toggles: Toggle[] = [
@@ -258,6 +263,10 @@
   {/if}
 
   <div class="label" style="margin-top:28px">Sidebar</div>
+  <div class="seg" style="margin-bottom:10px">
+    <button class="reset" onclick={hideAllButSettings}>Hide all except Settings</button>
+    <button class="reset" onclick={showAll}>Show all</button>
+  </div>
   {#each navOptions as n}
     <div class="row">
       <div class="text"><div class="name">Show {n.label}</div>

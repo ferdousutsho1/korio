@@ -3,7 +3,9 @@ import { browser } from "$app/environment";
 
 const KEY = "korio.sidebar.hidden";
 /** Nav ids the user can never hide. */
-export const ALWAYS = ["dashboard", "settings"];
+export const ALWAYS = ["settings"];
+/** All hideable nav ids. */
+export const HIDEABLE = ["dashboard", "stats", "watchlist", "sites", "tools", "tasks", "notes", "goals"];
 
 function load(): string[] {
   if (!browser) return [];
@@ -28,4 +30,14 @@ export function toggleSection(id: string) {
 
 export function initSidebar() {
   hiddenSections.set(load());
+}
+
+export function hideAllButSettings() {
+  if (browser) localStorage.setItem(KEY, JSON.stringify(HIDEABLE));
+  hiddenSections.set([...HIDEABLE]);
+}
+
+export function showAll() {
+  if (browser) localStorage.setItem(KEY, JSON.stringify([]));
+  hiddenSections.set([]);
 }
