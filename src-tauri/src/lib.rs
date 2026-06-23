@@ -23,21 +23,33 @@ pub struct AppState {
     pub site_limits: Mutex<crate::limits::LimitRuntime>,
 }
 
-/// Portable mode: korio.db next to the exe if that directory looks writable;
-/// otherwise %APPDATA%\Korio\korio.db.
+/// Stable data dir: `<data_dir>/Korio/korio.db`. Always AppData so updates
+/// (new builds in any folder) keep the user's data.
+fn resolve_db_path(data_dir: &std::path::Path) -> std::path::PathBuf {
+    data_dir.join("Korio").join("korio.db")
+}
+
+/// One-time import: if the AppData DB is absent but a legacy DB sits next to the
+/// exe, copy it in. Best-effort; never overwrites an existing AppData DB.
+fn migrate_legacy_db(legacy: &std::path::Path, target: &std::path::Path) {
+    if !target.exists() && legacy.exists() {
+        let _ = std::fs::copy(legacy, target);
+    }
+}
+
+/// Resolve the DB path (creating the Korio dir) and migrate a legacy next-to-exe DB once.
 pub fn db_path() -> std::path::PathBuf {
+    let base = dirs::data_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let target = resolve_db_path(&base);
+    if let Some(dir) = target.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
     if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let p = dir.join("korio.db");
-            if dir.metadata().map(|m| !m.permissions().readonly()).unwrap_or(false) {
-                return p;
-            }
+        if let Some(exe_dir) = exe.parent() {
+            migrate_legacy_db(&exe_dir.join("korio.db"), &target);
         }
     }
-    let base = dirs::data_dir().unwrap_or(std::path::PathBuf::from("."));
-    let dir = base.join("Korio");
-    let _ = std::fs::create_dir_all(&dir);
-    dir.join("korio.db")
+    target
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -218,5 +230,41 @@ fn read_bool_setting(app: &tauri::AppHandle, key: &str, default: bool) -> bool {
     match crate::db::queries::get_setting(&conn, key) {
         Ok(Some(v)) => v == "true",
         _ => default,
+    }
+}
+
+#[cfg(test)]
+mod db_path_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn resolve_uses_appdata_korio() {
+        let p = resolve_db_path(&PathBuf::from("/data"));
+        assert_eq!(p, PathBuf::from("/data").join("Korio").join("korio.db"));
+    }
+
+    #[test]
+    fn legacy_db_copied_only_when_target_absent() {
+        let base = std::env::temp_dir().join(format!("korio_test_{}", std::process::id()));
+        let exe_dir = base.join("exe");
+        let data_dir = base.join("data");
+        std::fs::create_dir_all(&exe_dir).unwrap();
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let legacy = exe_dir.join("korio.db");
+        std::fs::write(&legacy, b"LEGACY").unwrap();
+        let target = data_dir.join("Korio").join("korio.db");
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+
+        // target absent → copy happens
+        migrate_legacy_db(&legacy, &target);
+        assert_eq!(std::fs::read(&target).unwrap(), b"LEGACY");
+
+        // target present → no overwrite
+        std::fs::write(&target, b"CURRENT").unwrap();
+        migrate_legacy_db(&legacy, &target);
+        assert_eq!(std::fs::read(&target).unwrap(), b"CURRENT");
+
+        let _ = std::fs::remove_dir_all(&base);
     }
 }
