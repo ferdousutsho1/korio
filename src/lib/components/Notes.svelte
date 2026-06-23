@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  import { listNotes, addNote, updateNote, deleteNote, type Note } from "$lib/api";
+  import { listNotes, addNote, updateNote, deleteNote, setNoteSize, type Note } from "$lib/api";
   import { NOTE_COLORS, isOverdue } from "$lib/notes";
 
   let notes = $state<Note[]>([]);
@@ -8,7 +8,7 @@
 
   async function refresh() { notes = await listNotes(); }
   onMount(refresh);
-  onDestroy(() => { for (const t of timers.values()) clearTimeout(t); });
+  onDestroy(() => { for (const t of timers.values()) clearTimeout(t); for (const t of sizeTimers.values()) clearTimeout(t); });
 
   async function create() {
     const id = await addNote();
@@ -36,6 +36,29 @@
     await deleteNote(note.id);
     await refresh();
   }
+
+  const sizeTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  function persistSize(note: Note, w: number, h: number) {
+    note.width = w; note.height = h;
+    const ex = sizeTimers.get(note.id); if (ex) clearTimeout(ex);
+    sizeTimers.set(note.id, setTimeout(() => {
+      sizeTimers.delete(note.id);
+      setNoteSize(note.id, Math.round(w), Math.round(h));
+    }, 400));
+  }
+  // Svelte action: observe the card's size and persist changes (after first paint).
+  function resizable(node: HTMLElement, note: Note) {
+    let first = true;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) {
+        const w = e.contentRect.width, h = e.contentRect.height;
+        if (first) { first = false; continue; }
+        persistSize(note, w, h);
+      }
+    });
+    ro.observe(node);
+    return { destroy() { ro.disconnect(); } };
+  }
 </script>
 
 <div class="notes">
@@ -48,7 +71,8 @@
   {:else}
     <div class="grid">
       {#each notes as note (note.id)}
-        <article class="card" data-note={note.id} style="background: var(--note-{note.color});">
+        <article class="card" data-note={note.id} use:resizable={note}
+          style={`background: var(--note-${note.color}); width:${note.width ?? 240}px; ${note.height ? `height:${note.height}px;` : ""}`}>
           <header class="head">
             <input class="title" placeholder="Title" bind:value={note.title}
               oninput={() => scheduleSave(note)} aria-label="Note title" />
@@ -80,12 +104,13 @@
     background: var(--accent); color: var(--accent-contrast); cursor: pointer; }
   .empty { color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius);
     padding: 40px; text-align: center; }
-  /* masonry: balanced columns, cards never split */
-  .grid { column-width: 240px; column-gap: 16px; }
+  /* free-flow: cards keep their own size and wrap */
+  .grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
   .card { break-inside: avoid; display: flex; flex-direction: column; gap: 8px;
-    margin: 0 0 16px; padding: 12px; border-radius: var(--radius);
+    padding: 12px; border-radius: var(--radius); box-sizing: border-box;
     border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
-    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 8%, transparent); color: var(--text);
+    resize: both; overflow: hidden; min-width: 180px; min-height: 120px; }
   .head { display: flex; align-items: center; gap: 8px; }
   .title { flex: 1; font: inherit; font-weight: 600; font-size: 14px; border: none;
     background: none; color: var(--text); padding: 2px 0; }
@@ -93,8 +118,8 @@
   .x { border: none; background: none; color: var(--text); opacity: .5; font-size: 18px;
     line-height: 1; cursor: pointer; }
   .x:hover { opacity: 1; }
-  .body { font: inherit; font-size: 13px; line-height: 1.5; border: none; background: none;
-    color: var(--text); resize: vertical; min-height: 48px; padding: 0; }
+  .body { flex: 1; font: inherit; font-size: 13px; line-height: 1.5; border: none; background: none;
+    color: var(--text); resize: none; min-height: 0; padding: 0; }
   .title:focus, .body:focus, .due:focus { outline: none; }
   .foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .swatches { display: flex; gap: 5px; }
