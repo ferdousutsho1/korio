@@ -1,7 +1,8 @@
 <script lang="ts">
   import { nowMs, timer, timerSet, timerStartPause, timerReset, timerRemaining } from "$lib/tools";
   import { formatClock } from "$lib/format";
-  import { playSound, getSoundPref } from "$lib/sound";
+  import { playSound, getSoundPref, getLoopPref, startLoop, stopAllSounds } from "$lib/sound";
+  import { onDestroy } from "svelte";
 
   const presets = [1, 5, 10, 25];
   let mins = $state(5);
@@ -17,7 +18,14 @@
   function applyPreset(m: number) { mins = m; timerSet(m * 60_000); }
   function setCustom() { timerSet(Math.max(0, Math.round(mins)) * 60_000); }
 
-  function beep() { playSound(getSoundPref("timer")); }
+  let stopLoop = $state<(() => void) | null>(null);
+  function stopSound() { stopLoop?.(); stopLoop = null; }
+  function beep() {
+    stopSound();
+    if (getLoopPref("timer")) stopLoop = startLoop(getSoundPref("timer"));
+    else playSound(getSoundPref("timer"));
+  }
+  onDestroy(() => stopAllSounds());
 </script>
 
 <div class="tm" class:done={$timer.done}>
@@ -27,12 +35,12 @@
     <span class="custom"><input type="number" min="0" bind:value={mins} onchange={setCustom} aria-label="Minutes" /><span>min</span></span>
   </div>
   <div class="btns">
-    <button class="primary" onclick={timerStartPause} disabled={remaining <= 0 && !$timer.running}>
+    <button class="primary" onclick={() => { stopSound(); timerStartPause(); }} disabled={remaining <= 0 && !$timer.running}>
       {$timer.running ? "Pause" : "Start"}
     </button>
-    <button onclick={timerReset} disabled={$timer.durationMs === 0}>Reset</button>
+    <button onclick={() => { stopSound(); timerReset(); }} disabled={$timer.durationMs === 0}>Reset</button>
   </div>
-  {#if $timer.done}<div class="alarm">⏰ Time's up</div>{/if}
+  {#if $timer.done}<div class="alarm">⏰ Time's up{#if stopLoop}<button class="stopsnd" onclick={stopSound}>🔇 Stop</button>{/if}</div>{/if}
 </div>
 
 <style>
@@ -52,4 +60,6 @@
   .btns button:disabled { opacity: .4; cursor: default; }
   .primary { background: var(--accent) !important; color: var(--accent-contrast) !important; border-color: var(--accent) !important; }
   .alarm { color: var(--accent); font-weight: 600; }
+  .stopsnd { margin-left: 10px; font: inherit; font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--accent); background: var(--surface); color: var(--accent); cursor: pointer; }
 </style>

@@ -2,7 +2,8 @@
   import { nowMs } from "$lib/tools";
   import { pomodoro, config, setConfig, pomoStartPause, pomoReset, pomoSkip, pomoRemaining, type PomodoroConfig } from "$lib/pomodoro";
   import { formatClock } from "$lib/format";
-  import { playSound, getSoundPref } from "$lib/sound";
+  import { playSound, getSoundPref, getLoopPref, startLoop, stopAllSounds } from "$lib/sound";
+  import { onDestroy } from "svelte";
 
   let remaining = $derived(pomoRemaining($pomodoro, $nowMs));
   let label = $state("");
@@ -16,7 +17,14 @@
     prevTransitions = t;
   });
 
-  function chime() { playSound(getSoundPref("pomodoro")); }
+  let stopLoop = $state<(() => void) | null>(null);
+  function stopSound() { stopLoop?.(); stopLoop = null; }
+  function chime() {
+    stopSound();
+    if (getLoopPref("pomodoro")) stopLoop = startLoop(getSoundPref("pomodoro"));
+    else playSound(getSoundPref("pomodoro"));
+  }
+  onDestroy(() => stopAllSounds());
 
   function updateCfg(patch: Partial<PomodoroConfig>) { setConfig({ ...$config, ...patch }); }
 </script>
@@ -30,10 +38,11 @@
   {/if}
 
   <div class="btns">
-    <button class="primary" onclick={pomoStartPause}>{$pomodoro.running ? "Pause" : "Start"}</button>
-    <button onclick={pomoSkip}>Skip</button>
-    <button onclick={pomoReset}>Reset</button>
+    <button class="primary" onclick={() => { stopSound(); pomoStartPause(); }}>{$pomodoro.running ? "Pause" : "Start"}</button>
+    <button onclick={() => { stopSound(); pomoSkip(); }}>Skip</button>
+    <button onclick={() => { stopSound(); pomoReset(); }}>Reset</button>
   </div>
+  {#if stopLoop}<button class="stopsnd" onclick={stopSound}>🔇 Stop sound</button>{/if}
 
   <div class="count">🍅 {$pomodoro.completedFocus} focus {$pomodoro.completedFocus === 1 ? "session" : "sessions"} today</div>
 
@@ -63,4 +72,6 @@
   .cfg label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
   .cfg input { width: 54px; font: inherit; padding: 5px 7px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--bg); color: var(--text); text-align: right; }
+  .stopsnd { margin-left: 10px; font: inherit; font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm);
+    border: 1px solid var(--accent); background: var(--surface); color: var(--accent); cursor: pointer; }
 </style>
