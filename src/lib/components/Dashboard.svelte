@@ -42,7 +42,11 @@
   .customize { font: inherit; font-size: 13px; padding: 7px 14px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; }
   .customize:hover { color: var(--text); border-color: var(--accent); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; align-items: start; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px; align-items: stretch; }
+  .cell { display: flex; }
+  .cell > :global(*) { width: 100%; }
   .cell.wide { grid-column: span 2; }
   @media (max-width: 720px) { .cell.wide { grid-column: span 1; } }
+  .cell > :global(.card) { height: 100%; box-sizing: border-box; }
 </style>
