@@ -470,6 +470,8 @@ pub struct Note {
     pub due: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    pub width: Option<i64>,
+    pub height: Option<i64>,
 }
 
 /// Insert a blank note with a default color; returns its id.
@@ -486,14 +488,23 @@ pub fn add_note(conn: &Connection) -> rusqlite::Result<i64> {
 /// Newest first (ties broken by id).
 pub fn list_notes(conn: &Connection) -> rusqlite::Result<Vec<Note>> {
     let mut stmt = conn.prepare(
-        "SELECT id, title, body, color, due, created_at, updated_at
+        "SELECT id, title, body, color, due, created_at, updated_at, width, height
          FROM notes ORDER BY created_at DESC, id DESC",
     )?;
     let rows = stmt.query_map([], |r| Ok(Note {
         id: r.get(0)?, title: r.get(1)?, body: r.get(2)?, color: r.get(3)?,
         due: r.get(4)?, created_at: r.get(5)?, updated_at: r.get(6)?,
+        width: r.get(7)?, height: r.get(8)?,
     }))?;
     rows.collect()
+}
+
+pub fn set_note_size(conn: &Connection, id: i64, width: i64, height: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE notes SET width = ?2, height = ?3 WHERE id = ?1",
+        rusqlite::params![id, width, height],
+    )?;
+    Ok(())
 }
 
 pub fn update_note(
@@ -850,6 +861,19 @@ mod tests {
         assert_eq!(rows[1].name, "Uncategorized");
         assert_eq!(rows[1].seconds, 300);
         assert_eq!(rows[1].category_id, None);
+    }
+
+    #[test]
+    fn note_size_round_trips() {
+        let c = open_in_memory().unwrap();
+        let id = add_note(&c).unwrap();
+        let n0 = &list_notes(&c).unwrap()[0];
+        assert_eq!(n0.width, None);
+        assert_eq!(n0.height, None);
+        set_note_size(&c, id, 320, 240).unwrap();
+        let n1 = &list_notes(&c).unwrap()[0];
+        assert_eq!(n1.width, Some(320));
+        assert_eq!(n1.height, Some(240));
     }
 
     #[test]

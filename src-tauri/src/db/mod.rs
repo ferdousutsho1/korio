@@ -139,6 +139,8 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
         crate::db::queries::set_setting(conn, "categories_seeded", "true")?;
     }
     add_column_if_missing(conn, "apps", "category_id", "INTEGER")?;
+    add_column_if_missing(conn, "notes", "width", "INTEGER")?;
+    add_column_if_missing(conn, "notes", "height", "INTEGER")?;
     Ok(())
 }
 
