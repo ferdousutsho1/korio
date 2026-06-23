@@ -26,3 +26,6 @@ vite.config.ts.timestamp-*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Planning docs — kept local/private, not published
+docs/superpowers/
