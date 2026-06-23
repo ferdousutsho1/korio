@@ -493,3 +493,12 @@ pub fn usage_by_category(state: State<AppState>, from: i64, to: i64) -> Result<V
     let conn = state.db.lock().map_err(|e| e.to_string())?;
     queries::usage_by_category(&conn, from, to).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn clear_alert_topmost(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        w.set_always_on_top(false).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}

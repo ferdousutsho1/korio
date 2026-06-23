@@ -140,6 +140,7 @@ pub fn run() {
             crate::commands::delete_category,
             crate::commands::set_app_category,
             crate::commands::usage_by_category,
+            crate::commands::clear_alert_topmost,
         ])
         .setup(|app| {
             build_tray(app.handle())?;
@@ -162,6 +163,17 @@ fn show_main(app: &tauri::AppHandle) {
     use tauri::Manager;
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// Bring the main window over everything (used for limit alerts).
+pub fn surface_main(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_always_on_top(true);
         let _ = w.set_focus();
     }
 }
