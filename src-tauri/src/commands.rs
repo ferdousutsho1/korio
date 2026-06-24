@@ -141,17 +141,19 @@ pub fn set_site_limit(state: State<AppState>, domain: String, daily_cap_seconds:
     }
     if daily_cap_seconds == 0 {
         if let Ok(mut b) = state.browser.lock() { b.blocked.remove(&domain); }
-        // Also drop any runtime limit state (warned/snoozed/ignored) so re-adding a
-        // cap for this domain later today warns fresh instead of staying suppressed.
-        if let Ok(mut rt) = state.site_limits.lock() { rt.states.remove(&domain); }
     }
+    // Re-arm on any change: drop latched warned/close/snooze/ignore state for this domain
+    // so the new limit warns fresh instead of staying suppressed.
+    if let Ok(mut rt) = state.site_limits.lock() { rt.states.remove(&domain); }
     Ok(())
 }
 
 #[tauri::command]
 pub fn snooze_site_limit(state: State<AppState>, domain: String, minutes: i64) -> Result<(), String> {
     let mut rt = state.site_limits.lock().map_err(|e| e.to_string())?;
-    rt.state_mut(&domain).snoozed_until = chrono::Utc::now().timestamp() + minutes * 60;
+    let s = rt.state_mut(&domain);
+    s.snoozed_until = chrono::Utc::now().timestamp() + minutes * 60;
+    s.close_requested = false;
     Ok(())
 }
 
@@ -189,8 +191,16 @@ pub fn day_sessions(state: State<AppState>, from: i64, to: i64) -> Result<Vec<Se
 pub fn set_app_limit(state: State<AppState>, id: i64, daily_cap_seconds: i64, limit_action: String)
     -> Result<(), String> {
     let action = if limit_action == "close" { "close" } else { "warn" };
-    let conn = state.db.lock().map_err(|e| e.to_string())?;
-    queries::set_app_limit(&conn, id, daily_cap_seconds.max(0), action).map_err(|e| e.to_string())
+    let exe = {
+        let conn = state.db.lock().map_err(|e| e.to_string())?;
+        queries::set_app_limit(&conn, id, daily_cap_seconds.max(0), action).map_err(|e| e.to_string())?;
+        queries::app_launch_info(&conn, id).map_err(|e| e.to_string())?.map(|(exe, _)| exe)
+    };
+    // Re-arm: drop any latched warned/close/snooze/ignore state so the new limit fires fresh.
+    if let (Some(exe), Ok(mut rt)) = (exe, state.limits.lock()) {
+        rt.states.remove(&exe.to_lowercase());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -200,6 +210,7 @@ pub fn snooze_limit(state: State<AppState>, exe: String, minutes: i64) -> Result
     let s = rt.state_mut(&exe.to_lowercase());
     s.snoozed_until = now + minutes.max(1) * 60;
     s.warned = false;
+    s.close_requested = false;
     Ok(())
 }
 
