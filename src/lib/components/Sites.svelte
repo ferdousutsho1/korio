@@ -17,7 +17,7 @@
   let statusPoll: ReturnType<typeof setInterval> | null = null;
   async function refreshStatus() {
     checking = true;
-    try { status = await browserStatus(); } catch { status = null; }
+    try { status = await browserStatus(); } catch { /* keep last status on transient failure */ }
     checking = false;
   }
   async function recheck() { await refreshStatus(); await load(); }
