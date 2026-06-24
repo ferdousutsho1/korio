@@ -8,6 +8,7 @@ pub struct LimitState {
     pub ignored: bool,
     pub snoozed_until: i64,
     pub warned: bool,
+    pub close_requested: bool,
 }
 
 /// Decide what to do for ONE app this tick. Pure.
@@ -19,7 +20,7 @@ pub fn decide(today_seconds: i64, cap_seconds: i64, action: &str, st: &LimitStat
         return Decision::None;
     }
     if action == "close" {
-        return Decision::Close;
+        return if st.close_requested { Decision::None } else { Decision::Close };
     }
     if st.warned { Decision::None } else { Decision::Warn }
 }
@@ -73,8 +74,19 @@ mod tests {
         assert_eq!(decide(999, 100, "close", &s, 0), Decision::None);
     }
     #[test]
-    fn close_action_closes_even_if_not_warned() {
-        assert_eq!(decide(120, 100, "close", &st(), 0), Decision::Close);
+    fn close_action_closes_once_then_silent() {
+        let st = LimitState::default();
+        assert_eq!(decide(120, 100, "close", &st, 0), Decision::Close);
+        let requested = LimitState { close_requested: true, ..Default::default() };
+        assert_eq!(decide(120, 100, "close", &requested, 0), Decision::None);
+    }
+
+    #[test]
+    fn close_rearms_when_request_cleared() {
+        let mut st = LimitState { close_requested: true, ..Default::default() };
+        assert_eq!(decide(120, 100, "close", &st, 0), Decision::None);
+        st.close_requested = false;
+        assert_eq!(decide(120, 100, "close", &st, 0), Decision::Close);
     }
     #[test]
     fn reset_clears_states_on_new_day() {
