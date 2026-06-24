@@ -46,7 +46,8 @@
   button.on { color: var(--accent-contrast); background: var(--accent); }
   .g { width: 18px; text-align: center; }
   .foot { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 12px 8px 2px; }
-  .theme { width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-sm);
-    border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font-size: 14px; }
+  .theme { width: 30px; height: 30px; flex-shrink: 0; padding: 0; justify-content: center; line-height: 1;
+    border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);
+    color: var(--text); cursor: pointer; font-size: 14px; }
   .ver { font-size: 11px; color: var(--muted); letter-spacing: .3px; font-variant-numeric: tabular-nums; }
 </style>
