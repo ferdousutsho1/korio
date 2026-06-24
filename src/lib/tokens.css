@@ -16,6 +16,9 @@
   --accent: #C2410C;
   --accent-contrast: #ffffff;
   --chip: #EFE7D8;
+  --warn-snooze: #ECE7DC; --warn-snooze-text: #1A1714;
+  --warn-ignore: #E8A33D; --warn-ignore-text: #1A1714;
+  --warn-close: #C0392B; --warn-close-text: #ffffff;
 }
 /* Aperture Noir — dark */
 [data-theme="dark"] {
@@ -28,6 +31,9 @@
   --accent: #E26A2C;
   --accent-contrast: #16140F;
   --chip: #2A261E;
+  --warn-snooze: #2A261E; --warn-snooze-text: #EDE8DD;
+  --warn-ignore: #D99A33; --warn-ignore-text: #16140F;
+  --warn-close: #D64A3B; --warn-close-text: #ffffff;
 }
 
 /* ---- Tint: Slate (cool gray) ---- */
