@@ -8,13 +8,20 @@
 
   let current = $state<LimitEvent | null>(null);
   let closedToast = $state<string | null>(null);
+  let countdown = $state<number | null>(null);
+  let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  function stopCountdown() {
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+    countdown = null;
+  }
 
   let stopLoop: (() => void) | null = null;
   function endAlert() {
+    stopCountdown();
     stopLoop?.(); stopLoop = null;
     clearAlertTopmost().catch(() => {});
   }
-  onDestroy(() => stopAllSounds());
+  onDestroy(() => { stopAllSounds(); stopCountdown(); });
 
   onMount(() => {
     if (!browser) return;
@@ -23,6 +30,14 @@
       current = e.payload;
       stopLoop?.();
       stopLoop = startLoop(getSoundPref("limit"));
+      stopCountdown();
+      if (e.payload.auto_close) {
+        countdown = 5;
+        countdownTimer = setInterval(() => {
+          if (countdown !== null) countdown -= 1;
+          if (countdown !== null && countdown <= 0) { stopCountdown(); close(); }
+        }, 1000);
+      }
     }).then((u) => unlistens.push(u));
     listen<string>("limit-closed", (e) => {
       closedToast = e.payload;
@@ -61,11 +76,12 @@
       <div class="eyebrow">Daily limit reached</div>
       <h3>{current.display_name}</h3>
       <p>You've used <strong>{formatDuration(current.today_seconds)}</strong> today — past your
-        {formatDuration(current.cap_seconds)} limit.</p>
+        {formatDuration(current.cap_seconds)} limit.{#if countdown !== null}
+        <br /><strong class="cd">Closing in {countdown}s…</strong>{/if}</p>
       <div class="actions">
-        <button onclick={snooze}>Snooze 10 min</button>
-        <button onclick={ignore}>Ignore today</button>
-        <button class="danger" onclick={close}>{current.kind === "site" ? "Close tab" : "Close app"}</button>
+        <button class="snooze" onclick={snooze}>Snooze 10 min</button>
+        <button class="ignore" onclick={ignore}>Ignore today</button>
+        <button class="close" onclick={close}>{current.kind === "site" ? "Close tab" : "Close app"}</button>
       </div>
     </div>
   </div>
@@ -85,9 +101,12 @@
   p { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
   .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
   .actions button { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: var(--radius-sm);
-    border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer; }
-  .actions button:hover { border-color: var(--accent); }
-  .actions .danger { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+    border: 1px solid transparent; cursor: pointer; }
+  .actions .snooze { background: var(--warn-snooze); color: var(--warn-snooze-text); border-color: var(--line); }
+  .actions .ignore { background: var(--warn-ignore); color: var(--warn-ignore-text); }
+  .actions .close { background: var(--warn-close); color: var(--warn-close-text); }
+  .actions button:hover { filter: brightness(0.95); }
+  .cd { color: var(--warn-close); }
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 50;
     background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
     padding: 10px 16px; font-size: 13px; color: var(--text); box-shadow: 0 6px 24px rgba(0,0,0,.18); }
