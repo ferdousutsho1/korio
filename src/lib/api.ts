@@ -48,6 +48,7 @@ export const daySessions = (from: number, to: number) =>
 
 export interface LimitEvent {
   kind: string; exe: string; display_name: string; cap_seconds: number; today_seconds: number;
+  auto_close: boolean;
 }
 export const setAppLimit = (id: number, daily_cap_seconds: number, limit_action: string) =>
   invoke<void>("set_app_limit", { id, dailyCapSeconds: daily_cap_seconds, limitAction: limit_action });
