@@ -1,19 +1,32 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
   import { listApps, runningApps, addApp, removeApp, setAppLimit, launchApp, colorFor,
-    listCategories, addCategory, updateCategory, deleteCategory, setAppCategory,
+    listCategories, addCategory, updateCategory, deleteCategory, setAppCategory, usageToday,
     type App, type RunningApp, type Category } from "$lib/api";
+  import { formatDuration } from "$lib/format";
 
   let apps = $state<App[]>([]);
   let running = $state<RunningApp[]>([]);
   let picking = $state(false);
   let categories = $state<Category[]>([]);
   let managing = $state(false);
+  let usedById = $state<Record<number, number>>({});
+  async function refreshUsage() {
+    try {
+      const slices = await usageToday();
+      usedById = Object.fromEntries(slices.map((s) => [s.app_id, s.seconds]));
+    } catch { /* keep last */ }
+  }
+  let usagePoll: ReturnType<typeof setInterval> | null = null;
 
   async function refresh() { apps = await listApps(); }
   async function refreshCats() { categories = await listCategories(); }
-  onMount(async () => { await refresh(); await refreshCats(); });
+  onMount(async () => {
+    await refresh(); await refreshCats(); await refreshUsage();
+    usagePoll = setInterval(refreshUsage, 30_000);
+  });
+  onDestroy(() => { if (usagePoll) clearInterval(usagePoll); });
 
   async function assignCategory(a: App, value: string) {
     const id = value === "" ? null : Number(value);
@@ -78,7 +91,7 @@
 
   async function commitLimit(a: App, minutes: number, action: string) {
     await setAppLimit(a.id, Math.max(0, Math.round(minutes)) * 60, action);
-    await refresh();
+    await refresh(); await refreshUsage();
   }
 
   function onOverlayClick(e: MouseEvent) {
@@ -88,7 +101,8 @@
 
 <div class="wrap">
   <div class="head">
-    <p class="sub">Apps Korio actively times. Time counts only while one is focused and you're active.</p>
+    <p class="sub">Apps Korio actively times. Time counts only while one is focused and you're active.
+      <br /><span class="hint">Daily limits reset each day — set minutes per app; 0 = off.</span></p>
     <div class="addbtns">
       <button class="add" onclick={openPicker}>+ Add app</button>
       <button class="add ghost" onclick={browseForExe}>Browse for .exe</button>
@@ -106,6 +120,15 @@
           <span class="who">
             <span class="name">{a.display_name}</span>
             <span class="exe">{a.exe_name}</span>
+            {#if a.daily_cap_seconds > 0}
+              {@const used = usedById[a.id] ?? 0}
+              {@const over = used > a.daily_cap_seconds}
+              <span class="meter"><span class="mfill" class:over
+                style={`width:${Math.min(used / a.daily_cap_seconds, 1) * 100}%;${over ? "" : `background:${a.color}`}`}></span></span>
+              {#if over}
+                <span class="overtxt">Over limit — {formatDuration(used - a.daily_cap_seconds)} past {formatDuration(a.daily_cap_seconds)}</span>
+              {/if}
+            {/if}
           </span>
           <button class="launch" onclick={() => launchApp(a.id)}
             title="Launch {a.display_name}" aria-label="Launch {a.display_name}">▷</button>
@@ -216,7 +239,7 @@
   .unit { color: var(--muted); font-size: 11px; }
   .act { font: inherit; font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm);
     border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
-  .act.close { border-color: var(--accent); color: var(--accent); }
+  .act.close { border-color: var(--warn-close); color: var(--warn-close-text); background: var(--warn-close); }
   .modal { position: fixed; inset: 0; background: rgba(0,0,0,.35);
     display: flex; align-items: center; justify-content: center; }
   .sheet { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
@@ -241,4 +264,10 @@
   .newcat { margin-bottom: 14px; }
   .err { color: var(--note-overdue); font-size: 12px; margin: 0 0 10px; }
   .done { margin-top: 4px; }
+  .meter { height: 5px; width: 100%; margin-top: 6px; border-radius: 3px;
+    background: color-mix(in srgb, var(--text) 8%, transparent); overflow: hidden; }
+  .mfill { display: block; height: 100%; border-radius: 3px; min-width: 2px; }
+  .mfill.over { background: var(--warn-close); }
+  .overtxt { color: var(--warn-close); font-size: 11px; margin-top: 3px; }
+  .hint { color: var(--muted); font-size: 12px; }
 </style>
