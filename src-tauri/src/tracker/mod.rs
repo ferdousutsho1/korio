@@ -32,6 +32,7 @@ pub struct LimitEvent {
     pub display_name: String,
     pub cap_seconds: i64,
     pub today_seconds: i64,
+    pub auto_close: bool,
 }
 
 fn local_today_start() -> i64 {
@@ -148,7 +149,11 @@ pub fn spawn(app: AppHandle) {
                         rt.reset_if_new_day(s_day);
                         let st = rt.state_mut(&domain);
                         let d = limits::decide(today, cap, &action, st, now_unix);
-                        if d != Decision::None { st.warned = true; }
+                        match d {
+                            Decision::Warn => st.warned = true,
+                            Decision::Close => st.close_requested = true,
+                            Decision::None => {}
+                        }
                         d
                     } else { Decision::None };
                     match decision {
@@ -156,12 +161,15 @@ pub fn spawn(app: AppHandle) {
                             crate::surface_main(&app);
                             let _ = app.emit("limit-reached", LimitEvent {
                                 kind: "site".into(), exe: domain.clone(), display_name: domain.clone(),
-                                cap_seconds: cap, today_seconds: today,
+                                cap_seconds: cap, today_seconds: today, auto_close: false,
                             });
                         }
                         Decision::Close => {
-                            if let Ok(mut b) = state.browser.lock() { b.blocked.insert(domain.clone()); }
-                            let _ = app.emit("limit-closed", &domain);
+                            crate::surface_main(&app);
+                            let _ = app.emit("limit-reached", LimitEvent {
+                                kind: "site".into(), exe: domain.clone(), display_name: domain.clone(),
+                                cap_seconds: cap, today_seconds: today, auto_close: true,
+                            });
                         }
                         Decision::None => {}
                     }
@@ -180,7 +188,11 @@ pub fn spawn(app: AppHandle) {
                         rt.reset_if_new_day(day_start);
                         let st = rt.state_mut(&exe);
                         let d = limits::decide(today, cap, &action, st, now_unix);
-                        if d != Decision::None { st.warned = true; }
+                        match d {
+                            Decision::Warn => st.warned = true,
+                            Decision::Close => st.close_requested = true,
+                            Decision::None => {}
+                        }
                         d
                     } else { Decision::None };
                     match decision {
@@ -188,12 +200,17 @@ pub fn spawn(app: AppHandle) {
                             crate::surface_main(&app);
                             let name = display_name_for(&state, &exe).unwrap_or_else(|| exe.clone());
                             let _ = app.emit("limit-reached", LimitEvent {
-                                kind: "app".into(), exe: exe.clone(), display_name: name, cap_seconds: cap, today_seconds: today,
+                                kind: "app".into(), exe: exe.clone(), display_name: name,
+                                cap_seconds: cap, today_seconds: today, auto_close: false,
                             });
                         }
                         Decision::Close => {
-                            let _ = crate::proc::force_close(&exe);
-                            let _ = app.emit("limit-closed", &exe);
+                            crate::surface_main(&app);
+                            let name = display_name_for(&state, &exe).unwrap_or_else(|| exe.clone());
+                            let _ = app.emit("limit-reached", LimitEvent {
+                                kind: "app".into(), exe: exe.clone(), display_name: name,
+                                cap_seconds: cap, today_seconds: today, auto_close: true,
+                            });
                         }
                         Decision::None => {}
                     }

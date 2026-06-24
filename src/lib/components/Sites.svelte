@@ -1,14 +1,27 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { siteUsageRange, clearSite, colorFor, listSiteCaps, setSiteLimit, type SiteUsage, type SiteCap } from "$lib/api";
+  import { onMount, onDestroy } from "svelte";
+  import { siteUsageRange, clearSite, colorFor, listSiteCaps, setSiteLimit,
+    browserStatus, type SiteUsage, type SiteCap, type BrowserStatus } from "$lib/api";
   import { formatDuration } from "$lib/format";
   import { readJSON, writeJSON } from "$lib/prefs";
+  import { navIntent } from "$lib/nav";
 
   type RangeId = "today" | "7d" | "30d";
   let range = $state<RangeId>("today");
   type Row = { domain: string; seconds: number; cap: number; action: string };
   let rows = $state<Row[]>([]);
   let loading = $state(true);
+  let status = $state<BrowserStatus | null>(null);
+  let checking = $state(false);
+  let connected = $derived(status?.connected === true);
+  let statusPoll: ReturnType<typeof setInterval> | null = null;
+  async function refreshStatus() {
+    checking = true;
+    try { status = await browserStatus(); } catch { /* keep last status on transient failure */ }
+    checking = false;
+  }
+  async function recheck() { await refreshStatus(); await load(); }
+  function goSettings() { navIntent.set("settings"); }
 
   function todayStart(): number {
     const d = new Date();
@@ -58,10 +71,27 @@
   let max = $derived(rows.reduce((m, s) => Math.max(m, s.seconds), 0));
   let total = $derived(rows.reduce((a, s) => a + s.seconds, 0));
 
-  onMount(load);
+  onMount(async () => { await refreshStatus(); await load(); statusPoll = setInterval(refreshStatus, 15_000); });
+  onDestroy(() => { if (statusPoll) clearInterval(statusPoll); });
 </script>
 
 <div class="sites">
+  {#if !connected}
+    <div class="notconnected">
+      <h3>Browser not connected</h3>
+      <p>Korio isn't receiving any site data yet. To track the sites you visit:</p>
+      <ol>
+        <li>Open <strong>Settings</strong> and turn on <strong>Track browser sites</strong>.</li>
+        <li>Install the <strong>Korio browser extension</strong> in your browser.</li>
+        <li>In the extension's options page, paste the <strong>pairing token</strong> from Settings{#if status}{' '}(port {status.port}){/if}.</li>
+        <li>Come back here and press <strong>Refresh</strong>.</li>
+      </ol>
+      <div class="ncbtns">
+        <button class="primary" onclick={goSettings}>Open Settings</button>
+        <button class="ghost" onclick={recheck} disabled={checking}>{checking ? "Checking…" : "Refresh"}</button>
+      </div>
+    </div>
+  {:else}
   <div class="bar">
     <div class="ranges">
       <button class:on={range === "today"} onclick={() => setRange("today")}>Today</button>
@@ -111,6 +141,7 @@
       {/each}
     </ul>
   {/if}
+  {/if}
 </div>
 
 <style>
@@ -129,7 +160,7 @@
     border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .act { font: inherit; font-size: 11px; padding: 4px 8px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--bg); color: var(--muted); cursor: pointer; }
-  .act.close { color: var(--accent-contrast); background: var(--accent); border-color: var(--accent); }
+  .act.close { color: var(--warn-close-text); background: var(--warn-close); border-color: var(--warn-close); }
   .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .track { height: 12px; background: color-mix(in srgb, var(--text) 6%, transparent); border-radius: 6px; overflow: hidden; }
   .fill { display: block; height: 100%; border-radius: 6px; min-width: 2px; }
@@ -141,4 +172,14 @@
   .minlbl { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .minlbl select { font: inherit; font-size: 12px; padding: 4px 6px; border: 1px solid var(--line);
     border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+  .notconnected { border: 1px dashed var(--line); border-radius: var(--radius); padding: 28px; max-width: 560px; }
+  .notconnected h3 { font-family: var(--font-display); margin: 0 0 10px; }
+  .notconnected p { color: var(--muted); margin: 0 0 12px; }
+  .notconnected ol { color: var(--text); font-size: 14px; line-height: 1.7; margin: 0 0 18px; padding-left: 20px; }
+  .ncbtns { display: flex; gap: 10px; }
+  .ncbtns .primary { background: var(--accent); color: var(--accent-contrast); border: none;
+    padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer; font: inherit; }
+  .ncbtns .ghost { background: var(--surface); color: var(--text); border: 1px solid var(--line);
+    padding: 9px 14px; border-radius: var(--radius-sm); cursor: pointer; font: inherit; }
+  .ncbtns .ghost:disabled { opacity: .5; cursor: default; }
 </style>
