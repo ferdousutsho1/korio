@@ -6,6 +6,7 @@
 
   const presets = [1, 5, 10, 25];
   let mins = $state(5);
+  let secs = $state(0);
   let remaining = $derived(timerRemaining($timer, $nowMs));
   let prevDone = false;
 
@@ -15,8 +16,11 @@
     prevDone = $timer.done;
   });
 
-  function applyPreset(m: number) { mins = m; timerSet(m * 60_000); }
-  function setCustom() { timerSet(Math.max(0, Math.round(mins)) * 60_000); }
+  function applyPreset(m: number) { mins = m; secs = 0; timerSet(m * 60_000); }
+  function setCustom() {
+    const total = Math.max(0, Math.round(mins) * 60 + Math.round(secs));
+    timerSet(total * 1000);
+  }
 
   let stopLoop = $state<(() => void) | null>(null);
   function stopSound() { stopLoop?.(); stopLoop = null; }
@@ -32,7 +36,10 @@
   <div class="time">{formatClock(Math.ceil(remaining / 1000))}</div>
   <div class="presets">
     {#each presets as p}<button class:on={mins === p} onclick={() => applyPreset(p)}>{p}m</button>{/each}
-    <span class="custom"><input type="number" min="0" bind:value={mins} onchange={setCustom} aria-label="Minutes" /><span>min</span></span>
+    <span class="custom">
+      <input type="number" min="0" bind:value={mins} onchange={setCustom} aria-label="Minutes" /><span>min</span>
+      <input type="number" min="0" max="59" bind:value={secs} onchange={setCustom} aria-label="Seconds" /><span>sec</span>
+    </span>
   </div>
   <div class="btns">
     <button class="primary" onclick={() => { stopSound(); timerStartPause(); }} disabled={remaining <= 0 && !$timer.running}>
