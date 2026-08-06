@@ -3,7 +3,10 @@
 All notable changes to Korio are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## v0.4.0 — 2026-08-06
+## v0.3.0 — 2026-08-06
+
+Focus of this release: in-app updates, reminders, an end-of-day digest, site
+parity with apps, and a serious pass over readability.
 
 ### Added
 - **In-app updates.** Settings → **Updates** has a **Check for updates** button and
@@ -21,15 +24,8 @@ All notable changes to Korio are documented here. This project follows
   checks always show a result, including "you're on the latest version", and
   ignore an earlier Skip/Remind choice.
 
-> **Note:** v0.4.0 is the first release that can update itself. Earlier versions
-> have to be upgraded once by hand.
-
-## v0.3.0 — 2026-08-06
-
-Focus of this release: reminders, an end-of-day digest, site parity with apps,
-and a serious pass over readability.
-
-### Added
+  > **Note:** v0.3.0 is the first release that can update itself. Earlier
+  > versions have to be upgraded once by hand.
 - **Reminders tab.** Schedule nudges with a date and time, repeat them (once /
   every day / weekdays / every week), and handle them when they fire: **Close
   reminder**, **Remind in 1 hour**, or **Choose time…** for a custom delay.
