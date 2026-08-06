@@ -155,6 +155,18 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     // Sites can be renamed and categorised just like apps. Tracking stays keyed on `domain`.
     add_column_if_missing(conn, "sites", "display_name", "TEXT")?;
     add_column_if_missing(conn, "sites", "category_id", "INTEGER")?;
+
+    // The digest used to be generated at a user-set time and keyed on the day it was
+    // READ; it now always covers the finished day and is keyed on that SUBJECT day.
+    // Drop the dead setting and reset the two markers once, so a stale value can't
+    // suppress the first glow under the new meaning.
+    if crate::db::queries::get_setting(conn, "digest_daykeyed_migrated")?.is_none() {
+        conn.execute(
+            "DELETE FROM settings WHERE key IN ('digest_time','digest_last_viewed','digest_last_sent')",
+            [],
+        )?;
+        crate::db::queries::set_setting(conn, "digest_daykeyed_migrated", "true")?;
+    }
     Ok(())
 }
 
@@ -205,6 +217,29 @@ mod migration_tests {
         let before = cols(&conn, "sites");
         migrate(&conn).unwrap();
         assert_eq!(cols(&conn, "sites"), before);
+    }
+
+    /// The old scheduled-time digest settings meant something different; clearing
+    /// them once must not then wipe a value the user creates afterwards.
+    #[test]
+    fn clears_legacy_digest_settings_exactly_once() {
+        use crate::db::queries::{get_setting, set_setting};
+        let conn = crate::db::open_in_memory().unwrap();
+        set_setting(&conn, "digest_time", "18:00").unwrap();
+        set_setting(&conn, "digest_last_viewed", "2026-08-06").unwrap();
+        set_setting(&conn, "digest_last_sent", "2026-08-06").unwrap();
+        // Pretend this DB predates the reset so the one-shot runs.
+        conn.execute("DELETE FROM settings WHERE key = 'digest_daykeyed_migrated'", []).unwrap();
+
+        migrate(&conn).unwrap();
+        assert_eq!(get_setting(&conn, "digest_time").unwrap(), None);
+        assert_eq!(get_setting(&conn, "digest_last_viewed").unwrap(), None);
+        assert_eq!(get_setting(&conn, "digest_last_sent").unwrap(), None);
+
+        // A digest read after the migration survives the next boot.
+        set_setting(&conn, "digest_last_viewed", "2026-08-07").unwrap();
+        migrate(&conn).unwrap();
+        assert_eq!(get_setting(&conn, "digest_last_viewed").unwrap().as_deref(), Some("2026-08-07"));
     }
 }
 

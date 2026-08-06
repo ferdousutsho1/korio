@@ -3,6 +3,26 @@
 All notable changes to Korio are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## v0.3.1 — 2026-08-07
+
+### Fixed
+- **The end-of-day digest showed the wrong day.** It always summarised *today*,
+  so setting the digest time to a small hour (say 12 AM on 4 August) produced a
+  recap of the handful of minutes that had elapsed since midnight — in practice,
+  a blank page — instead of the day that had just finished.
+
+### Changed
+- **The digest time setting is gone.** A digest now always covers the day that
+  just ended and appears at local midnight; the sidebar tab glows until you open
+  it. The unread marker is keyed on the day being summarised, so reading one at
+  23:00 no longer marks the following night's as already read.
+- The notification toggle stays, and now fires for each new digest rather than at
+  a set hour. If Korio wasn't running at midnight it sends on the next launch.
+- The digest header names the day it covers, and a day with nothing tracked says
+  so plainly instead of rendering empty cards.
+
+Existing installs drop the now-unused `digest_time` setting on first launch.
+
 ## v0.3.0 — 2026-08-06
 
 Focus of this release: in-app updates, reminders, an end-of-day digest, site

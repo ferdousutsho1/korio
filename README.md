@@ -66,7 +66,7 @@ around ~50–90 MB of RAM instead of the hundreds you'd expect from an Electron 
 - **To-do list** — a per-date list (view and edit previous days).
 - **Reminders** — scheduled nudges with repeat rules (once / daily / weekdays / weekly), plus snooze-for-an-hour or a time you pick.
 - **Sticky Notes** — color-coded notes with due dates, freely resizable.
-- **End of day digest** — a short visual recap of the day (top apps, top sites, where the time went, limits blown through) with commentary. The tab glows when a new one is ready.
+- **End of day digest** — a short visual recap of the day that just ended (top apps, top sites, where the time went, limits blown through) with commentary. It appears at midnight and the tab glows until you open it.
 - **Global quick-capture** — a system-wide hotkey to jot a task or note without switching windows.
 - **Quick-launch** — start any watched app straight from Korio.
 

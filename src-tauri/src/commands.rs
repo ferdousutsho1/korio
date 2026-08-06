@@ -101,6 +101,14 @@ pub fn score_today(state: State<AppState>) -> Result<u8, String> {
     Ok(crate::score::focus_score(&slices))
 }
 
+/// Focus score for an arbitrary window — the digest scores a finished day, not today.
+#[tauri::command]
+pub fn score_range(state: State<AppState>, from: i64, to: i64) -> Result<u8, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    let slices = queries::usage_between(&conn, from, to).map_err(|e| e.to_string())?;
+    Ok(crate::score::focus_score(&slices))
+}
+
 #[tauri::command]
 pub fn usage_range(state: State<AppState>, from: i64, to: i64) -> Result<Vec<UsageSlice>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;

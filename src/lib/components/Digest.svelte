@@ -1,9 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { usageToday, scoreToday, siteSlices, listApps, listSiteCaps, listTasks,
+  import { usageRange, scoreRange, siteSlices, listApps, listSiteCaps, listTasks,
     usageByCategory, type UsageSlice, type SiteSlice, type CategoryUsage } from "$lib/api";
   import { formatDuration } from "$lib/format";
-  import { digestQuips, markDigestViewed, type Highlights, type Overage } from "$lib/digest";
+  import { digestQuips, markDigestViewed, subjectDayBounds, subjectDayLabel, previousDay,
+    type Highlights, type Overage } from "$lib/digest";
   import DonutChart from "$lib/components/DonutChart.svelte";
   import { readJSON } from "$lib/prefs";
 
@@ -17,17 +18,14 @@
   let overages = $state<Overage[]>([]);
   let pomodoros = $state(0);
 
-  function dayBounds(): [number, number] {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    const from = Math.floor(d.getTime() / 1000);
-    return [from, from + 86400];
-  }
+  // The digest always covers the day that has finished, so it's never built from
+  // a day still in progress (at 00:05 that would be an empty five minutes).
+  const now = new Date();
 
   async function load() {
-    const [from, to] = dayBounds();
+    const [from, to] = subjectDayBounds(now);
     const [u, s, sl, cu, appRows, caps, tasks] = await Promise.all([
-      usageToday(), scoreToday(), siteSlices(from, to), usageByCategory(from, to),
+      usageRange(from, to), scoreRange(from, to), siteSlices(from, to), usageByCategory(from, to),
       listApps(), listSiteCaps(), listTasks(from, to),
     ]);
     apps = u; score = s; sites = sl; cats = cu;
@@ -52,16 +50,18 @@
     overages = over;
 
     // Pomodoro keeps its own per-day counter in localStorage ({date, count}).
+    // It isn't cleared at midnight, only overwritten on the next completed session,
+    // so the finished day's count is still readable for most of the following day.
     const p = readJSON<{ date?: string; count?: number }>("korio.pomodoro.count", {});
-    const todayStr = new Date().toDateString();   // must match pomodoro.ts's key format
-    pomodoros = p?.date === todayStr && typeof p.count === "number" ? p.count : 0;
+    const subjectStr = previousDay(now).toDateString();  // must match pomodoro.ts's key format
+    pomodoros = p?.date === subjectStr && typeof p.count === "number" ? p.count : 0;
 
     loading = false;
   }
 
   onMount(async () => {
     await load();
-    await markDigestViewed();   // opening the tab clears the glow for today
+    await markDigestViewed();   // opening the tab clears the glow for this subject day
   });
 
   let appTotal = $derived(apps.reduce((a, x) => a + x.seconds, 0));
@@ -80,13 +80,13 @@
   });
   let quips = $derived(digestQuips(highlights));
 
-  let today = new Date().toLocaleDateString(undefined,
-    { weekday: "long", month: "long", day: "numeric" });
+  let dayLabel = subjectDayLabel(now);
+  let nothingTracked = $derived(!loading && appTotal === 0 && siteTotal === 0 && tasksTotal === 0);
 </script>
 
 <div class="digest">
   <header class="hero">
-    <div class="eyebrow">End of day · {today}</div>
+    <div class="eyebrow">End of day · {dayLabel}</div>
     <h2>{formatDuration(appTotal)} focused</h2>
     <div class="stats">
       <span><strong>{score}</strong> focus score</span>
@@ -97,7 +97,13 @@
   </header>
 
   {#if loading}
-    <p class="empty">Building today's digest…</p>
+    <p class="empty">Building the digest…</p>
+  {:else if nothingTracked}
+    <div class="none">
+      <p>Korio didn't track anything on {dayLabel}.</p>
+      <p class="sub">The digest covers the day that just ended, so today's activity shows up
+        in tomorrow's — and the tab glows when it's ready.</p>
+    </div>
   {:else}
     {#if quips.length}
       <ul class="quips">
@@ -198,6 +204,10 @@
   .card.over { border-color: var(--warn-close); }
   .label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
   .empty { color: var(--muted); font-size: 13px; margin: 0; }
+  .none { border: 1px dashed var(--line); border-radius: var(--radius); padding: 36px; text-align: center; }
+  .none p { margin: 0; font-size: 14px; }
+  .none .sub { color: var(--muted); font-size: 12.5px; margin-top: 10px; max-width: 460px;
+    margin-left: auto; margin-right: auto; line-height: 1.6; }
 
   .bars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .bars li { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 10px; font-size: 12px; }

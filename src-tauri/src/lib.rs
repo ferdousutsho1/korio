@@ -95,6 +95,7 @@ pub fn run() {
             crate::commands::usage_today,
             crate::commands::score_today,
             crate::commands::usage_range,
+            crate::commands::score_range,
             crate::commands::daily_totals,
             crate::commands::day_sessions,
             crate::commands::set_app_limit,
