@@ -42,6 +42,8 @@ export const renameApp = (id: number, displayName: string) =>
 
 export const usageRange = (from: number, to: number) =>
   invoke<UsageSlice[]>("usage_range", { from, to });
+export const scoreRange = (from: number, to: number) =>
+  invoke<number>("score_range", { from, to });
 export const dailyTotals = (from: number, to: number) =>
   invoke<DayTotal[]>("daily_totals", { from, to });
 export const daySessions = (from: number, to: number) =>

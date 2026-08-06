@@ -1,29 +1,50 @@
 import { formatDuration } from "$lib/format";
 
-/** Minutes since local midnight. */
-export function minutesOfDay(d: Date): number {
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-/** "HH:MM" → minutes since midnight, or null if malformed/out of range. */
-export function parseHm(hm: string): number | null {
-  const m = /^(\d{2}):(\d{2})$/.exec(hm);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (h > 23 || min > 59) return null;
-  return h * 60 + min;
-}
-
 /** Local YYYY-MM-DD. */
 export function ymd(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-/** Fire when enabled, the local time has reached the target, and we haven't sent today. */
-export function shouldSend(enabled: boolean, nowMinutes: number, targetMinutes: number, lastSent: string, today: string): boolean {
-  return enabled && nowMinutes >= targetMinutes && lastSent !== today;
+/**
+ * Local midnight of the day BEFORE `now`'s day.
+ *
+ * The digest always covers the day that has finished, so it is never built from
+ * a day that is still (or barely) in progress — at 00:05 the interesting day is
+ * the one that just ended, not the five minutes of the new one.
+ */
+export function previousDay(now: Date): Date {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+}
+
+/** The day the current digest is about, as YYYY-MM-DD. Rolls over at local midnight. */
+export function subjectDay(now: Date): string {
+  return ymd(previousDay(now));
+}
+
+/**
+ * `[from, to)` unix seconds for the local calendar day containing `d`.
+ * Built from date components, so it stays correct across DST shifts (a 23- or
+ * 25-hour day still spans exactly one calendar day).
+ */
+export function dayBounds(d: Date): [number, number] {
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  return [Math.floor(start.getTime() / 1000), Math.floor(end.getTime() / 1000)];
+}
+
+/** `[from, to)` unix seconds for the day the digest covers. */
+export function subjectDayBounds(now: Date): [number, number] {
+  return dayBounds(previousDay(now));
+}
+
+/**
+ * Send the recap notification when it's enabled and we haven't already sent one
+ * for this subject day. Since the subject day rolls at local midnight, this
+ * naturally fires just after midnight — or on next launch if Korio was closed.
+ */
+export function shouldSend(enabled: boolean, lastSent: string, subject: string): boolean {
+  return enabled && lastSent !== subject;
 }
 
 export interface DigestStats {
@@ -33,11 +54,11 @@ export interface DigestStats {
   topSeconds: number;
 }
 
-/** Build the notification title + body from the day's stats. */
+/** Build the notification title + body from the finished day's stats. */
 export function composeDigest(s: DigestStats): { title: string; body: string } {
   const lines = [`${formatDuration(s.totalSeconds)} focused · score ${s.score}`];
   if (s.topName) lines.push(`Top: ${s.topName} ${formatDuration(s.topSeconds)}`);
-  return { title: "Korio — today's recap", body: lines.join("\n") };
+  return { title: "Korio — yesterday's recap", body: lines.join("\n") };
 }
 
 // ---- End-of-day digest highlights ----
@@ -116,53 +137,57 @@ export function limitPinRequired(settings: Record<string, string>, hasPin: boole
   return settings.limit_pin_enabled === "true" && hasPin;
 }
 
-/** The day's digest is ready once the local clock passes the configured time. */
-export function isDigestReady(nowMinutes: number, targetMinutes: number): boolean {
-  return nowMinutes >= targetMinutes;
+/**
+ * Unread = the digest for the day that just ended hasn't been opened yet.
+ * `lastViewed` stores the SUBJECT day, not the day it was read on, so opening
+ * yesterday's digest at 23:00 doesn't also mark tonight's as read.
+ */
+export function isDigestUnread(lastViewed: string, subject: string): boolean {
+  return lastViewed !== subject;
 }
 
-/** Unread = a digest is ready for today and today's hasn't been opened yet. */
-export function isDigestUnread(ready: boolean, lastViewed: string, today: string): boolean {
-  return ready && lastViewed !== today;
+/** Long-form label for the day the digest covers, e.g. "Wednesday, 5 August". */
+export function subjectDayLabel(now: Date): string {
+  return previousDay(now).toLocaleDateString(undefined,
+    { weekday: "long", day: "numeric", month: "long" });
 }
 
 // ---- Scheduler (main window only; no-ops without Tauri) ----
 import { browser } from "$app/environment";
 import { writable } from "svelte/store";
 import { isMainWindow } from "$lib/sync";
-import { getSettings, setSetting, usageToday, scoreToday } from "$lib/api";
+import { getSettings, setSetting, usageRange, scoreRange } from "$lib/api";
 import { navIntent } from "$lib/nav";
 
 let started = false;
 
-/** True while today's digest is ready but hasn't been opened — drives the sidebar glow. */
+/** True while the finished day's digest hasn't been opened — drives the sidebar glow. */
 export const digestUnread = writable(false);
 
-/** Re-read the digest schedule and recompute the unread flag. Safe without Tauri. */
+/** Recompute the unread flag for the day that just ended. Safe without Tauri. */
 export async function refreshDigestUnread() {
   try {
     const s = await getSettings();
-    const target = parseHm(s.digest_time || "18:00") ?? 18 * 60;
-    const now = new Date();
-    const ready = isDigestReady(minutesOfDay(now), target);
-    digestUnread.set(isDigestUnread(ready, s.digest_last_viewed || "", ymd(now)));
+    digestUnread.set(isDigestUnread(s.digest_last_viewed || "", subjectDay(new Date())));
   } catch { digestUnread.set(false); }
 }
 
-/** Mark today's digest as read (clears the glow until tomorrow). */
+/** Mark the finished day's digest as read (clears the glow until the next midnight). */
 export async function markDigestViewed() {
   digestUnread.set(false);
-  try { await setSetting("digest_last_viewed", ymd(new Date())); } catch { /* not in Tauri */ }
+  try { await setSetting("digest_last_viewed", subjectDay(new Date())); } catch { /* not in Tauri */ }
 }
 
-/** Start the once-a-day digest scheduler (main window only; safe to call without Tauri). */
+/**
+ * Watch for the local day rolling over (main window only; safe without Tauri).
+ * `check` both refreshes the sidebar glow and sends the recap notification, so
+ * a machine left running overnight picks the new digest up within ~30s.
+ */
 export function initDigest() {
   if (!browser || started) return;
   started = true;
   setTimeout(check, 3_000);          // shortly after launch
   setInterval(check, 30_000);        // then every 30s
-  void refreshDigestUnread();
-  setInterval(refreshDigestUnread, 60_000);
   registerClickHandler();
 }
 
@@ -170,22 +195,21 @@ async function check() {
   if (!isMainWindow()) return;
   let s: Record<string, string>;
   try { s = await getSettings(); } catch { return; } // not in Tauri
-  if (s.digest_enabled !== "true") return;
-  const target = parseHm(s.digest_time || "18:00");
-  if (target === null) return;
   const now = new Date();
-  const today = ymd(now);
-  if (!shouldSend(true, minutesOfDay(now), target, s.digest_last_sent || "", today)) return;
-  await sendDigest();
-  await setSetting("digest_last_sent", today);
+  const subject = subjectDay(now);
+  // The glow is independent of the notification toggle — the tab is always usable.
   await refreshDigestUnread();
+  if (!shouldSend(s.digest_enabled === "true", s.digest_last_sent || "", subject)) return;
+  await sendDigest(now);
+  await setSetting("digest_last_sent", subject);
 }
 
-async function sendDigest() {
+async function sendDigest(now: Date) {
   try {
-    const [usage, score] = await Promise.all([usageToday(), scoreToday()]);
+    const [from, to] = subjectDayBounds(now);
+    const [usage, score] = await Promise.all([usageRange(from, to), scoreRange(from, to)]);
     const total = usage.reduce((a, u) => a + u.seconds, 0);
-    const top = usage[0] ?? null; // usageToday is sorted DESC
+    const top = usage[0] ?? null; // usage_range is sorted DESC
     const { title, body } = composeDigest({
       totalSeconds: total, score,
       topName: top?.display_name ?? null, topSeconds: top?.seconds ?? 0,

@@ -4,10 +4,10 @@
   import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
   import { appearance, setMode, setAccent, setTint, type Tint } from "$lib/theme";
   import { hiddenSections, toggleSection, hideAllButSettings, showAll } from "$lib/sidebar";
+  import { ensureNotificationPermission } from "$lib/digest";
   import { save, open } from "@tauri-apps/plugin-dialog";
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
-  import { ensureNotificationPermission, refreshDigestUnread } from "$lib/digest";
   import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
   import { SOUNDS, getSoundPref, setSoundPref, playSound, getLoopPref, setLoopPref, type SoundType, type SoundId } from "$lib/sound";
   import { checkForUpdates, updateStatus, updateDialogOpen, currentVersion,
@@ -50,7 +50,6 @@
   let autotrack = $state(false);
   let autotrackMinutes = $state(10);
   let digestEnabled = $state(false);
-  let digestTime = $state("18:00");
   let captureEnabled = $state(true);
   let browser = $state<BrowserStatus | null>(null);
   let browserPoll: ReturnType<typeof setInterval> | null = null;
@@ -119,7 +118,6 @@
     try { next["autostart"] = await isEnabled(); } catch { /* keep stored value */ }
     values = next;
     digestEnabled = s["digest_enabled"] === "true";
-    digestTime = s["digest_time"] || "18:00";
     captureEnabled = s["capture_enabled"] !== "false";
     limitPin = s["limit_pin_enabled"] === "true";
     autotrack = s["autotrack_enabled"] === "true";
@@ -155,11 +153,6 @@
     if (next) { await ensureNotificationPermission(); }
     digestEnabled = next;
     await setSetting("digest_enabled", next ? "true" : "false");
-  }
-  async function onDigestTime(e: Event) {
-    digestTime = (e.currentTarget as HTMLInputElement).value || "18:00";
-    await setSetting("digest_time", digestTime);
-    await refreshDigestUnread();
   }
 
   async function toggle(key: string) {
@@ -237,14 +230,11 @@
   <div class="label" style="margin-top:28px">Notifications</div>
   <div class="row">
     <div class="text"><div class="name">End-of-day digest notification</div>
-      <div class="help">Send a desktop toast when the day's digest is ready. The digest tab works either way.</div></div>
+      <div class="help">Send a desktop toast when a new digest is ready. Digests cover the day that
+        just ended and appear at midnight — the sidebar tab glows until you open it, whether or not
+        this is on.</div></div>
     <button class="sw" class:on={digestEnabled} role="switch" aria-checked={digestEnabled}
       aria-label="End-of-day digest" onclick={toggleDigest}><span class="knob"></span></button>
-  </div>
-  <div class="row">
-    <div class="text"><div class="name">Digest time</div>
-      <div class="help">When the day's digest is generated — the sidebar tab glows until you open it.</div></div>
-    <input class="time" type="time" value={digestTime} onchange={onDigestTime} aria-label="Digest time" />
   </div>
 
   <div class="row">
@@ -425,7 +415,6 @@
   .picker { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; cursor: pointer; }
   .datamsg { color: var(--muted); font-size: 12px; padding-top: 10px; }
   .pin { width: 90px; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
-  .time { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); }
   .token-preview { font-family: monospace; font-size: 13px; color: var(--muted); padding: 6px 8px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius-sm); }
   .seg select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); cursor: pointer; }
 </style>
