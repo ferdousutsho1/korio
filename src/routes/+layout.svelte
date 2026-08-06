@@ -6,8 +6,9 @@
   import { initSync } from "$lib/sync";
   import { initDigest } from "$lib/digest";
   import { initReminders } from "$lib/reminders";
+  import { initUpdates } from "$lib/updates";
   let { children } = $props();
-  onMount(() => { initTheme(); initSidebar(); initSync(); initDigest(); initReminders(); });
+  onMount(() => { initTheme(); initSidebar(); initSync(); initDigest(); initReminders(); initUpdates(); });
 </script>
 
 {@render children()}

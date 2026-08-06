@@ -3,6 +3,27 @@
 All notable changes to Korio are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## v0.4.0 — 2026-08-06
+
+### Added
+- **In-app updates.** Settings → **Updates** has a **Check for updates** button and
+  a "check automatically" toggle (on by default: shortly after launch, then once
+  a day). When a newer version exists, a dialog shows the version, release date
+  and what's new, with three choices:
+  - **Skip this version** — stays quiet about that version, but still tells you
+    about anything newer.
+  - **Remind me later** — quiet for 24 hours.
+  - **Update & restart** — downloads with a progress bar, installs, and relaunches
+    Korio on the new version.
+
+  Updates are fetched from Korio's official GitHub releases and their signature is
+  verified against a key baked into the app before anything is installed. Manual
+  checks always show a result, including "you're on the latest version", and
+  ignore an earlier Skip/Remind choice.
+
+> **Note:** v0.4.0 is the first release that can update itself. Earlier versions
+> have to be upgraded once by hand.
+
 ## v0.3.0 — 2026-08-06
 
 Focus of this release: reminders, an end-of-day digest, site parity with apps,
