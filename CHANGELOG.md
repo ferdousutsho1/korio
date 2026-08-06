@@ -3,6 +3,56 @@
 All notable changes to Korio are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## v0.3.0 — 2026-08-06
+
+Focus of this release: reminders, an end-of-day digest, site parity with apps,
+and a serious pass over readability.
+
+### Added
+- **Reminders tab.** Schedule nudges with a date and time, repeat them (once /
+  every day / weekdays / every week), and handle them when they fire: **Close
+  reminder**, **Remind in 1 hour**, or **Choose time…** for a custom delay.
+  Overdue reminders are flagged in the list, and each row has quick **+1h** /
+  **+1d** buttons.
+- **End of day digest tab.** A short visual recap of the day — total focus time,
+  focus score, site time, to-dos done, top apps and sites, where the time went
+  (category donut), and any limits you blew through — with some commentary about
+  how it went. The sidebar tab **glows until you open today's digest**. The time
+  it's generated is configurable in Settings.
+- **Site usage meters.** Sites with a daily limit now show a fill meter under the
+  name, turning red with an "Over limit — Xm past Ym" line, matching the Watchlist.
+- **Categories for sites.** Sites can be categorised just like apps, and their
+  time now feeds the dashboard's Category breakdown.
+- **Site focus breakdown card** for the dashboard (off by default; enable it in
+  ⚙ Customize).
+- **Renaming.** Apps and sites can both be renamed to whatever you like. Tracking
+  keeps following the underlying exe name / domain, so history is never broken.
+  Clearing a site's name restores the raw domain.
+- **PIN-locked Snooze & Ignore.** Optionally require your Korio PIN to snooze or
+  ignore a limit that's been reached. Closing is never gated, and backing out of
+  the PIN prompt re-arms the auto-close countdown.
+- **Auto-tracking.** Optionally have Korio add any non-system app you keep
+  focused past a threshold (default 10 minutes/day) to the Watchlist by itself.
+  Windows shell processes and anything under the Windows directory are skipped.
+
+### Changed
+- **Sites keep working when the browser is closed.** Previously the whole tab was
+  replaced by a "browser not connected" setup screen, hiding your history. Now
+  your stats always show, and a small dismissible notice at the bottom explains
+  that live tracking is paused, with Settings and Retry shortcuts.
+- **Daily activity heatmap is readable.** Bigger cells, weekday and month labels,
+  a legend with real durations instead of a vague Less→More ramp, a highlighted
+  selected day, and an active-days/busiest-day summary.
+- **Timeline is readable.** Taller ribbon with 2-hour gridlines and labelled hour
+  ticks, hoverable/focusable session blocks with a live readout, and a per-app
+  key with totals for the selected day.
+- **"Tasks" is now "To-do list"** and **"Stats" is now "App Stats"**.
+
+### Removed
+- **App lock.** The PIN-to-open-Korio screen is gone. The PIN itself remains and
+  is now used to protect limit snooze/ignore instead.
+- **Goals tab.** Removed along with its dashboard card.
+
 ## v0.2.0 — 2026-06-24
 
 Focus of this release: smarter app/site limits, a clearer Watchlist, and UI polish.

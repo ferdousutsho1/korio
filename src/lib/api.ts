@@ -1,6 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Goal, GoalProgress } from "$lib/goals";
-export type { Goal, GoalProgress } from "$lib/goals";
 
 export interface App {
   id: number; display_name: string; exe_name: string; kind: string; color: string;
@@ -38,6 +36,9 @@ export const scoreToday = () => invoke<number>("score_today");
 export const addApp = (a: { display_name: string; exe_name: string; kind: string; color: string; exe_path?: string | null }) =>
   invoke<number>("add_app", { displayName: a.display_name, exeName: a.exe_name, kind: a.kind, color: a.color, exePath: a.exe_path ?? null });
 export const launchApp = (id: number) => invoke<void>("launch_app", { id });
+/** Display-only rename; tracking stays keyed on the app's exe name. */
+export const renameApp = (id: number, displayName: string) =>
+  invoke<void>("rename_app", { id, displayName });
 
 export const usageRange = (from: number, to: number) =>
   invoke<UsageSlice[]>("usage_range", { from, to });
@@ -97,14 +98,6 @@ export const setNoteSize = (id: number, width: number, height: number) =>
   invoke<void>("set_note_size", { id, width, height });
 
 
-export const listGoals = () => invoke<Goal[]>("list_goals");
-export const goalsProgress = () => invoke<GoalProgress[]>("goals_progress");
-export const addGoal = (g: { scope: Goal["scope"]; scopeRef: string | null; comparator: Goal["comparator"]; targetSeconds: number }) =>
-  invoke<number>("add_goal", { scope: g.scope, scopeRef: g.scopeRef, comparator: g.comparator, targetSeconds: g.targetSeconds });
-export const updateGoal = (id: number, comparator: Goal["comparator"], targetSeconds: number) =>
-  invoke<void>("update_goal", { id, comparator, targetSeconds });
-export const deleteGoal = (id: number) => invoke<void>("delete_goal", { id });
-
 export const hideCapture = () => invoke<void>("hide_capture");
 export const setCaptureShortcut = (enabled: boolean) => invoke<void>("set_capture_shortcut", { enabled });
 
@@ -126,8 +119,23 @@ export const siteUsageRange = (from: number, to: number) =>
   invoke<SiteUsage[]>("site_usage_range", { from, to });
 export const clearSite = (domain: string) => invoke<void>("clear_site", { domain });
 
-export interface SiteCap { domain: string; daily_cap_seconds: number; limit_action: string; }
+export interface SiteCap {
+  domain: string; daily_cap_seconds: number; limit_action: string;
+  display_name: string | null; category_id: number | null;
+}
 export const listSiteCaps = () => invoke<SiteCap[]>("list_site_caps");
+/** Display-only rename; tracking stays keyed on the domain. Empty clears the override. */
+export const setSiteName = (domain: string, displayName: string | null) =>
+  invoke<void>("set_site_name", { domain, displayName });
+export const setSiteCategory = (domain: string, categoryId: number | null) =>
+  invoke<void>("set_site_category", { domain, categoryId });
+
+export interface SiteSlice {
+  domain: string; display_name: string | null; category_id: number | null;
+  color: string; seconds: number;
+}
+export const siteSlices = (from: number, to: number) =>
+  invoke<SiteSlice[]>("site_slices", { from, to });
 export const setSiteLimit = (domain: string, daily_cap_seconds: number, limit_action: string) =>
   invoke<void>("set_site_limit", { domain, dailyCapSeconds: daily_cap_seconds, limitAction: limit_action });
 export const snoozeSiteLimit = (domain: string, minutes: number) =>
@@ -136,3 +144,21 @@ export const ignoreSiteLimit = (domain: string) => invoke<void>("ignore_site_lim
 export const blockSite = (domain: string) => invoke<void>("block_site", { domain });
 
 export const clearAlertTopmost = () => invoke<void>("clear_alert_topmost");
+
+export type RepeatRule = "once" | "daily" | "weekdays" | "weekly";
+export interface Reminder {
+  id: number; title: string; at_ts: number; repeat_rule: RepeatRule;
+  done: boolean; fired_at: number | null; created_at: number;
+}
+export const listReminders = () => invoke<Reminder[]>("list_reminders");
+export const addReminder = (title: string, atTs: number, repeatRule: RepeatRule) =>
+  invoke<number>("add_reminder", { title, atTs, repeatRule });
+export const updateReminder = (id: number, title: string, atTs: number, repeatRule: RepeatRule) =>
+  invoke<void>("update_reminder", { id, title, atTs, repeatRule });
+export const setReminderDone = (id: number, done: boolean) =>
+  invoke<void>("set_reminder_done", { id, done });
+export const snoozeReminder = (id: number, atTs: number) =>
+  invoke<void>("snooze_reminder", { id, atTs });
+export const markReminderFired = (id: number, firedAt: number) =>
+  invoke<void>("mark_reminder_fired", { id, firedAt });
+export const deleteReminder = (id: number) => invoke<void>("delete_reminder", { id });

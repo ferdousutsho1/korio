@@ -9,6 +9,11 @@ use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThre
 
 /// Lower-cased exe name of the current foreground window, e.g. "code.exe".
 pub fn foreground_exe() -> Option<String> {
+    foreground_app().map(|(exe, _)| exe)
+}
+
+/// (lower-cased exe name, full image path) of the current foreground window.
+pub fn foreground_app() -> Option<(String, String)> {
     unsafe {
         let hwnd: HWND = GetForegroundWindow();
         if hwnd.0.is_null() {
@@ -33,7 +38,8 @@ pub fn foreground_exe() -> Option<String> {
             return None;
         }
         let full = String::from_utf16_lossy(&buf[..size as usize]);
-        full.rsplit(['\\', '/']).next().map(|s| s.to_lowercase())
+        let exe = full.rsplit(['\\', '/']).next()?.to_lowercase();
+        Some((exe, full))
     }
 }
 

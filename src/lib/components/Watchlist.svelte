@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { open } from "@tauri-apps/plugin-dialog";
-  import { listApps, runningApps, addApp, removeApp, setAppLimit, launchApp, colorFor,
+  import { listApps, runningApps, addApp, removeApp, setAppLimit, launchApp, colorFor, renameApp,
     listCategories, addCategory, updateCategory, deleteCategory, setAppCategory, usageToday,
     type App, type RunningApp, type Category } from "$lib/api";
   import { formatDuration } from "$lib/format";
@@ -89,6 +89,14 @@
 
   async function drop(a: App) { await removeApp(a.id); await refresh(); }
 
+  /** Display-only rename — tracking keeps using the app's exe name. */
+  async function commitName(a: App, value: string) {
+    const next = value.trim();
+    if (!next || next === a.display_name) { await refresh(); return; }
+    await renameApp(a.id, next);
+    await refresh();
+  }
+
   async function commitLimit(a: App, minutes: number, action: string) {
     await setAppLimit(a.id, Math.max(0, Math.round(minutes)) * 60, action);
     await refresh(); await refreshUsage();
@@ -118,7 +126,9 @@
         <li>
           <span class="dot" style={`background:${a.color}`}></span>
           <span class="who">
-            <span class="name">{a.display_name}</span>
+            <input class="name" value={a.display_name} aria-label={`Name for ${a.exe_name}`}
+              title="Rename — tracking still follows {a.exe_name}"
+              onchange={(e) => commitName(a, e.currentTarget.value)} />
             <span class="exe">{a.exe_name}</span>
             {#if a.daily_cap_seconds > 0}
               {@const used = usedById[a.id] ?? 0}
@@ -224,8 +234,10 @@
   .list li { display: flex; align-items: center; gap: 12px; background: var(--surface);
     border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
   .dot { width: 10px; height: 10px; border-radius: 3px; }
-  .name { font-weight: 600; }
-  .exe { color: var(--muted); font-size: 12px; }
+  .name { font: inherit; font-size: 14px; font-weight: 600; width: 100%; padding: 2px 4px;
+    border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text); }
+  .name:hover, .name:focus { border-color: var(--line); background: var(--bg); outline: none; }
+  .exe { color: var(--muted); font-size: 12px; padding-left: 4px; }
   .x { border: none; background: transparent; color: var(--muted);
     font-size: 20px; cursor: pointer; line-height: 1; }
   .who { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }

@@ -3,6 +3,7 @@ pub mod site;
 #[cfg(windows)]
 pub mod win;
 
+use crate::autotrack::{self, AutoTracker};
 use crate::db::queries;
 use crate::limits::{self, Decision};
 use crate::AppState;
@@ -18,6 +19,8 @@ const IDLE_THRESHOLD_SECS: u64 = 300; // 5 minutes (configurable in a later part
 /// How recently the extension must have reported a domain for it to count.
 /// The extension heartbeats every 30s, so 90s tolerates a couple of missed beats.
 const SITE_STALE_SECS: i64 = 90;
+/// Mirrors the frontend `colorFor` palette so auto-added apps look hand-picked.
+const AUTO_PALETTE: &[&str] = &["#C2410C", "#7A6F5C", "#B8A98C", "#3A6EA5", "#2F6E4F", "#8A4FB3", "#B23A48"];
 
 #[derive(Clone, Serialize)]
 pub struct LiveStatus {
@@ -62,12 +65,17 @@ pub fn spawn(app: AppHandle) {
             let conn = state.db.lock().unwrap();
             queries::watched_exes(&conn).unwrap_or_default()
         };
-        let mut tracker = SessionTracker::new(initial.into_iter().collect::<HashSet<_>>());
+        let mut watched: HashSet<String> = initial.into_iter().collect();
+        let mut tracker = SessionTracker::new(watched.clone());
         let mut site_tracker = SiteTracker::new();
         let mut refresh_counter = 0u32;
         let mut limits_map: HashMap<String, (i64, String)> = HashMap::new();
         let mut site_limits_map: HashMap<String, (i64, String)> = HashMap::new();
         let mut site_day: i64 = 0;
+        let mut auto = AutoTracker::new();
+        let mut auto_enabled = false;
+        let mut auto_threshold_secs: i64 = 600;
+        let windows_dir = std::env::var("SystemRoot").unwrap_or_default();
 
         loop {
             std::thread::sleep(Duration::from_secs(TICK_SECS));
@@ -78,8 +86,18 @@ pub fn spawn(app: AppHandle) {
                 refresh_counter = 0;
                 if let Ok(conn) = state.db.lock() {
                     if let Ok(list) = queries::watched_exes(&conn) {
-                        tracker.set_watched(list.into_iter().collect());
+                        watched = list.into_iter().collect();
+                        tracker.set_watched(watched.clone());
                     }
+                    auto_enabled = matches!(
+                        queries::get_setting(&conn, "autotrack_enabled").ok().flatten().as_deref(),
+                        Some("true")
+                    );
+                    auto_threshold_secs = queries::get_setting(&conn, "autotrack_minutes")
+                        .ok().flatten()
+                        .and_then(|v| v.parse::<i64>().ok())
+                        .filter(|m| *m > 0)
+                        .unwrap_or(10) * 60;
                     if let Ok(list) = queries::app_limits(&conn) {
                         limits_map = list.into_iter().map(|(e, c, a)| (e, (c, a))).collect();
                     }
@@ -98,8 +116,32 @@ pub fn spawn(app: AppHandle) {
             }
 
             let now = chrono::Utc::now().timestamp();
-            let exe = win::foreground_exe();
+            let fg = win::foreground_app();
+            let exe = fg.as_ref().map(|(e, _)| e.clone());
             let idle = win::idle_seconds() >= IDLE_THRESHOLD_SECS;
+
+            // --- Auto-discovery: promote a long-focused, non-system app to the watchlist ---
+            if auto_enabled && !idle {
+                if let Some((fexe, fpath)) = fg.as_ref() {
+                    if watched.contains(fexe) {
+                        auto.forget(fexe);
+                    } else if autotrack::is_auto_trackable(fexe, fpath, &windows_dir)
+                        && auto.observe(local_today_start(), fexe, TICK_SECS as i64, auto_threshold_secs)
+                    {
+                        let name = autotrack::pretty_name(fexe);
+                        let color = AUTO_PALETTE[watched.len() % AUTO_PALETTE.len()];
+                        let added = state.db.lock().ok().and_then(|conn| {
+                            queries::add_app(&conn, &name, fexe, "neutral", color, Some(fpath)).ok()
+                        });
+                        if added.is_some() {
+                            // Start timing immediately instead of waiting for the next refresh.
+                            watched.insert(fexe.clone());
+                            tracker.set_watched(watched.clone());
+                            let _ = app.emit("app-auto-added", &name);
+                        }
+                    }
+                }
+            }
 
             if let Some(finished) = tracker.observe(Sample { now, focused_exe: exe.clone(), idle }) {
                 if let Ok(conn) = state.db.lock() {

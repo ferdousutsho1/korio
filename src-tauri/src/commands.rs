@@ -499,10 +499,107 @@ pub fn set_app_category(state: State<AppState>, id: i64, category_id: Option<i64
     queries::set_app_category(&conn, id, category_id).map_err(|e| e.to_string())
 }
 
+/// App time + site time in one set of category buckets, merged by `category_id`
+/// (the NULL "Uncategorized" bucket merges too) and re-sorted by seconds DESC.
+pub fn merge_category_usage(a: Vec<CategoryUsage>, b: Vec<CategoryUsage>) -> Vec<CategoryUsage> {
+    let mut out: Vec<CategoryUsage> = a;
+    for row in b {
+        match out.iter_mut().find(|r| r.category_id == row.category_id) {
+            Some(existing) => existing.seconds += row.seconds,
+            None => out.push(row),
+        }
+    }
+    out.sort_by(|x, y| y.seconds.cmp(&x.seconds));
+    out
+}
+
 #[tauri::command]
 pub fn usage_by_category(state: State<AppState>, from: i64, to: i64) -> Result<Vec<CategoryUsage>, String> {
     let conn = state.db.lock().map_err(|e| e.to_string())?;
-    queries::usage_by_category(&conn, from, to).map_err(|e| e.to_string())
+    let apps = queries::usage_by_category(&conn, from, to).map_err(|e| e.to_string())?;
+    let sites = queries::site_usage_by_category(&conn, from, to).map_err(|e| e.to_string())?;
+    Ok(merge_category_usage(apps, sites))
+}
+
+#[tauri::command]
+pub fn site_slices(state: State<AppState>, from: i64, to: i64) -> Result<Vec<queries::SiteSlice>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::site_slices_between(&conn, from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn rename_app(state: State<AppState>, id: i64, display_name: String) -> Result<(), String> {
+    let n = display_name.trim();
+    if n.is_empty() { return Err("empty name".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::rename_app(&conn, id, n).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_site_name(state: State<AppState>, domain: String, display_name: Option<String>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_site_name(&conn, &domain, display_name.as_deref()).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_site_category(state: State<AppState>, domain: String, category_id: Option<i64>) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_site_category(&conn, &domain, category_id).map_err(|e| e.to_string())
+}
+
+// ---- Reminders ----
+
+#[tauri::command]
+pub fn list_reminders(state: State<AppState>) -> Result<Vec<queries::Reminder>, String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::list_reminders(&conn).map_err(|e| e.to_string())
+}
+
+fn valid_repeat(rule: &str) -> bool {
+    matches!(rule, "once" | "daily" | "weekdays" | "weekly")
+}
+
+#[tauri::command]
+pub fn add_reminder(state: State<AppState>, title: String, at_ts: i64, repeat_rule: String) -> Result<i64, String> {
+    let t = title.trim();
+    if t.is_empty() { return Err("empty title".into()); }
+    if !valid_repeat(&repeat_rule) { return Err("bad repeat rule".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::add_reminder(&conn, t, at_ts, &repeat_rule).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_reminder(state: State<AppState>, id: i64, title: String, at_ts: i64, repeat_rule: String)
+    -> Result<(), String> {
+    let t = title.trim();
+    if t.is_empty() { return Err("empty title".into()); }
+    if !valid_repeat(&repeat_rule) { return Err("bad repeat rule".into()); }
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::update_reminder(&conn, id, t, at_ts, &repeat_rule).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_reminder_done(state: State<AppState>, id: i64, done: bool) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::set_reminder_done(&conn, id, done).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn snooze_reminder(state: State<AppState>, id: i64, at_ts: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::snooze_reminder(&conn, id, at_ts).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn mark_reminder_fired(state: State<AppState>, id: i64, fired_at: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::mark_reminder_fired(&conn, id, fired_at).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_reminder(state: State<AppState>, id: i64) -> Result<(), String> {
+    let conn = state.db.lock().map_err(|e| e.to_string())?;
+    queries::delete_reminder(&conn, id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -518,4 +615,34 @@ pub fn clear_alert_topmost(app: tauri::AppHandle) -> Result<(), String> {
         w.set_always_on_top(false).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cu(id: Option<i64>, name: &str, secs: i64) -> CategoryUsage {
+        CategoryUsage {
+            category_id: id, name: name.into(), color: "#000".into(),
+            nature: "neutral".into(), seconds: secs,
+        }
+    }
+
+    #[test]
+    fn merges_matching_buckets_and_resorts() {
+        let apps = vec![cu(Some(1), "Work", 300), cu(None, "Uncategorized", 100)];
+        let sites = vec![cu(None, "Uncategorized", 500), cu(Some(2), "Fun", 50)];
+        let out = merge_category_usage(apps, sites);
+        assert_eq!(out.len(), 3);
+        assert_eq!((out[0].category_id, out[0].seconds), (None, 600));
+        assert_eq!((out[1].category_id, out[1].seconds), (Some(1), 300));
+        assert_eq!((out[2].category_id, out[2].seconds), (Some(2), 50));
+    }
+
+    #[test]
+    fn merging_with_an_empty_side_is_a_passthrough() {
+        let apps = vec![cu(Some(1), "Work", 300)];
+        assert_eq!(merge_category_usage(apps.clone(), vec![]).len(), 1);
+        assert_eq!(merge_category_usage(vec![], apps).len(), 1);
+    }
 }

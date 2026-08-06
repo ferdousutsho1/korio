@@ -43,7 +43,7 @@
   <RangePicker onChange={onRange} initial={initialPicker} />
   <div class="sub">{rangeLabel}</div>
   <BarBreakdown {slices} />
-  <Heatmap from={range.from} to={range.to} {totals} {onPickDay} />
+  <Heatmap from={range.from} to={range.to} {totals} {onPickDay} selected={selectedDay} />
   <TimelineRibbon dayStart={selectedDay} sessions={daySess} />
 </div>
 

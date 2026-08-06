@@ -256,6 +256,51 @@ pub struct SiteCap {
     pub domain: String,
     pub daily_cap_seconds: i64,
     pub limit_action: String,
+    /// User-chosen label. `None` = show the raw domain. Tracking always uses `domain`.
+    pub display_name: Option<String>,
+    pub category_id: Option<i64>,
+}
+
+/// Ensure a `sites` row exists for `domain` so name/category edits have something to update.
+fn ensure_site_row(conn: &Connection, domain: &str) -> rusqlite::Result<()> {
+    conn.execute("INSERT OR IGNORE INTO sites (domain) VALUES (?1)", [domain])?;
+    Ok(())
+}
+
+/// Rename a site for display only — `domain` (the tracking key) is never touched.
+/// An empty/blank name clears the override so the raw domain shows again.
+pub fn set_site_name(conn: &Connection, domain: &str, name: Option<&str>) -> rusqlite::Result<()> {
+    ensure_site_row(conn, domain)?;
+    let name = name.map(str::trim).filter(|s| !s.is_empty());
+    conn.execute(
+        "UPDATE sites SET display_name = ?2 WHERE domain = ?1",
+        rusqlite::params![domain, name],
+    )?;
+    Ok(())
+}
+
+/// Assign (or clear) a site's category. Unlike apps there is no mirrored `kind`
+/// column — site time is grouped straight through `category_id`.
+pub fn set_site_category(conn: &Connection, domain: &str, category_id: Option<i64>) -> rusqlite::Result<()> {
+    if let Some(cid) = category_id {
+        // Validate: an unknown id returns QueryReturnedNoRows and makes no change.
+        let _: i64 = conn.query_row("SELECT id FROM categories WHERE id = ?1", [cid], |r| r.get(0))?;
+    }
+    ensure_site_row(conn, domain)?;
+    conn.execute(
+        "UPDATE sites SET category_id = ?2 WHERE domain = ?1",
+        rusqlite::params![domain, category_id],
+    )?;
+    Ok(())
+}
+
+/// Rename a watchlist app for display only — `exe_name` (the tracking key) is never touched.
+pub fn rename_app(conn: &Connection, id: i64, display_name: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE apps SET display_name = ?2 WHERE id = ?1",
+        rusqlite::params![id, display_name],
+    )?;
+    Ok(())
 }
 
 pub fn set_site_limit(conn: &Connection, domain: &str, daily_cap_seconds: i64, limit_action: &str)
@@ -279,9 +324,12 @@ pub fn site_limits(conn: &Connection) -> rusqlite::Result<Vec<(String, i64, Stri
 }
 
 pub fn list_site_caps(conn: &Connection) -> rusqlite::Result<Vec<SiteCap>> {
-    let mut stmt = conn.prepare("SELECT domain, daily_cap_seconds, limit_action FROM sites")?;
+    let mut stmt = conn.prepare(
+        "SELECT domain, daily_cap_seconds, limit_action, display_name, category_id FROM sites",
+    )?;
     let rows = stmt.query_map([], |r| Ok(SiteCap {
         domain: r.get(0)?, daily_cap_seconds: r.get(1)?, limit_action: r.get(2)?,
+        display_name: r.get(3)?, category_id: r.get(4)?,
     }))?;
     rows.collect()
 }
@@ -414,13 +462,14 @@ pub fn update_category(conn: &Connection, id: i64, name: &str, color: &str, natu
     tx.commit()
 }
 
-/// Delete a category; member apps revert to uncategorized + neutral.
+/// Delete a category; member apps revert to uncategorized + neutral, member sites to uncategorized.
 pub fn delete_category(conn: &Connection, id: i64) -> rusqlite::Result<()> {
     let tx = conn.unchecked_transaction()?;
     tx.execute(
         "UPDATE apps SET category_id = NULL, kind = 'neutral' WHERE category_id = ?1",
         [id],
     )?;
+    tx.execute("UPDATE sites SET category_id = NULL WHERE category_id = ?1", [id])?;
     tx.execute("DELETE FROM categories WHERE id = ?1", [id])?;
     tx.commit()
 }
@@ -459,6 +508,137 @@ pub fn usage_by_category(conn: &Connection, from: i64, to: i64) -> rusqlite::Res
         category_id: r.get(0)?, name: r.get(1)?, color: r.get(2)?, nature: r.get(3)?, seconds: r.get(4)?,
     }))?;
     rows.collect()
+}
+
+/// Site time grouped by category within [from, to). Same shape as `usage_by_category`
+/// so the two can be merged bucket-for-bucket. Sites with no `sites` row (never
+/// renamed/capped/categorised) fall into the NULL "Uncategorized" bucket.
+pub fn site_usage_by_category(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<CategoryUsage>> {
+    let mut stmt = conn.prepare(
+        "SELECT st.category_id,
+                COALESCE(c.name, 'Uncategorized') AS name,
+                COALESCE(c.color, '#9A8F7C') AS color,
+                COALESCE(c.nature, 'neutral') AS nature,
+                COALESCE(SUM(ss.seconds), 0) AS secs
+         FROM site_sessions ss
+         LEFT JOIN sites st ON st.domain = ss.domain
+         LEFT JOIN categories c ON c.id = st.category_id
+         WHERE ss.started_at >= ?1 AND ss.started_at < ?2
+         GROUP BY st.category_id
+         HAVING secs > 0
+         ORDER BY secs DESC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(CategoryUsage {
+        category_id: r.get(0)?, name: r.get(1)?, color: r.get(2)?, nature: r.get(3)?, seconds: r.get(4)?,
+    }))?;
+    rows.collect()
+}
+
+/// One tracked domain's time in a window, plus its display/category metadata.
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct SiteSlice {
+    pub domain: String,
+    pub display_name: Option<String>,
+    pub category_id: Option<i64>,
+    pub color: String,
+    pub seconds: i64,
+}
+
+/// Per-domain time within [from, to), joined with the site's name/category, seconds DESC.
+pub fn site_slices_between(conn: &Connection, from: i64, to: i64) -> rusqlite::Result<Vec<SiteSlice>> {
+    let mut stmt = conn.prepare(
+        "SELECT ss.domain, st.display_name, st.category_id,
+                COALESCE(c.color, '#9A8F7C') AS color,
+                COALESCE(SUM(ss.seconds), 0) AS secs
+         FROM site_sessions ss
+         LEFT JOIN sites st ON st.domain = ss.domain
+         LEFT JOIN categories c ON c.id = st.category_id
+         WHERE ss.started_at >= ?1 AND ss.started_at < ?2
+         GROUP BY ss.domain
+         HAVING secs > 0
+         ORDER BY secs DESC",
+    )?;
+    let rows = stmt.query_map([from, to], |r| Ok(SiteSlice {
+        domain: r.get(0)?, display_name: r.get(1)?, category_id: r.get(2)?,
+        color: r.get(3)?, seconds: r.get(4)?,
+    }))?;
+    rows.collect()
+}
+
+// ---- Reminders ----
+
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub struct Reminder {
+    pub id: i64,
+    pub title: String,
+    /// When it should fire, unix seconds.
+    pub at_ts: i64,
+    pub repeat_rule: String,
+    pub done: bool,
+    /// Last time this reminder was actually surfaced (unix seconds), or None.
+    pub fired_at: Option<i64>,
+    pub created_at: i64,
+}
+
+pub fn add_reminder(conn: &Connection, title: &str, at_ts: i64, repeat_rule: &str) -> rusqlite::Result<i64> {
+    conn.execute(
+        "INSERT INTO reminders (title, at_ts, repeat_rule, created_at) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![title, at_ts, repeat_rule, now()],
+    )?;
+    Ok(conn.last_insert_rowid())
+}
+
+/// All reminders: pending (soonest first) above done (most recent first).
+pub fn list_reminders(conn: &Connection) -> rusqlite::Result<Vec<Reminder>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, title, at_ts, repeat_rule, done, fired_at, created_at
+         FROM reminders ORDER BY done ASC, CASE WHEN done = 0 THEN at_ts ELSE -at_ts END ASC",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Reminder {
+        id: r.get(0)?, title: r.get(1)?, at_ts: r.get(2)?, repeat_rule: r.get(3)?,
+        done: r.get::<_, i64>(4)? != 0, fired_at: r.get(5)?, created_at: r.get(6)?,
+    }))?;
+    rows.collect()
+}
+
+pub fn update_reminder(conn: &Connection, id: i64, title: &str, at_ts: i64, repeat_rule: &str)
+    -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE reminders SET title = ?2, at_ts = ?3, repeat_rule = ?4 WHERE id = ?1",
+        rusqlite::params![id, title, at_ts, repeat_rule],
+    )?;
+    Ok(())
+}
+
+pub fn set_reminder_done(conn: &Connection, id: i64, done: bool) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE reminders SET done = ?2 WHERE id = ?1",
+        rusqlite::params![id, if done { 1 } else { 0 }],
+    )?;
+    Ok(())
+}
+
+/// Push a reminder into the future ("remind me later"); clears the fired mark so it re-fires.
+pub fn snooze_reminder(conn: &Connection, id: i64, at_ts: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE reminders SET at_ts = ?2, fired_at = NULL, done = 0 WHERE id = ?1",
+        rusqlite::params![id, at_ts],
+    )?;
+    Ok(())
+}
+
+/// Record that a reminder was surfaced, so it isn't shown again for the same firing.
+pub fn mark_reminder_fired(conn: &Connection, id: i64, fired_at: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE reminders SET fired_at = ?2 WHERE id = ?1",
+        rusqlite::params![id, fired_at],
+    )?;
+    Ok(())
+}
+
+pub fn delete_reminder(conn: &Connection, id: i64) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM reminders WHERE id = ?1", [id])?;
+    Ok(())
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -892,5 +1072,103 @@ mod tests {
         assert_eq!(g.target_seconds, 1800);
         delete_goal(&c, id).unwrap();
         assert_eq!(list_goals(&c).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn renaming_an_app_keeps_its_tracking_key() {
+        let c = open_in_memory().unwrap();
+        let id = add_app(&c, "Code", "code.exe", "neutral", "#000", None).unwrap();
+        insert_session(&c, "code.exe", 100, 200, 60).unwrap();
+        rename_app(&c, id, "Work editor").unwrap();
+        let a = list_apps(&c).unwrap().into_iter().find(|a| a.id == id).unwrap();
+        assert_eq!(a.display_name, "Work editor");
+        assert_eq!(a.exe_name, "code.exe", "exe (the tracking key) is untouched");
+        // tracking still resolves by exe after the rename
+        insert_session(&c, "code.exe", 300, 400, 40).unwrap();
+        assert_eq!(app_seconds_between(&c, "code.exe", 0, 1000).unwrap(), 100);
+    }
+
+    #[test]
+    fn site_rename_and_category_survive_limit_edits() {
+        let c = open_in_memory().unwrap();
+        let cid = add_category(&c, "Research", "#123456", "productive").unwrap();
+        set_site_name(&c, "news.ycombinator.com", Some("Hacker News")).unwrap();
+        set_site_category(&c, "news.ycombinator.com", Some(cid)).unwrap();
+        set_site_limit(&c, "news.ycombinator.com", 1800, "warn").unwrap();
+        let row = list_site_caps(&c).unwrap().into_iter()
+            .find(|s| s.domain == "news.ycombinator.com").unwrap();
+        assert_eq!(row.display_name.as_deref(), Some("Hacker News"));
+        assert_eq!(row.category_id, Some(cid));
+        assert_eq!(row.daily_cap_seconds, 1800);
+
+        // blank name clears the override; deleting the category un-assigns the site
+        set_site_name(&c, "news.ycombinator.com", Some("  ")).unwrap();
+        delete_category(&c, cid).unwrap();
+        let row = list_site_caps(&c).unwrap().into_iter()
+            .find(|s| s.domain == "news.ycombinator.com").unwrap();
+        assert_eq!(row.display_name, None);
+        assert_eq!(row.category_id, None);
+        assert_eq!(row.daily_cap_seconds, 1800, "the cap is unaffected");
+    }
+
+    #[test]
+    fn site_time_groups_by_category_with_uncategorized_bucket() {
+        let c = open_in_memory().unwrap();
+        let cid = add_category(&c, "Research", "#123456", "productive").unwrap();
+        set_site_category(&c, "docs.rs", Some(cid)).unwrap();
+        insert_site_session(&c, "docs.rs", 100, 200, 300).unwrap();
+        insert_site_session(&c, "reddit.com", 100, 200, 120).unwrap();
+
+        let rows = site_usage_by_category(&c, 0, 1000).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].category_id, Some(cid));
+        assert_eq!(rows[0].name, "Research");
+        assert_eq!(rows[0].seconds, 300);
+        assert_eq!(rows[1].category_id, None);
+        assert_eq!(rows[1].name, "Uncategorized");
+        assert_eq!(rows[1].seconds, 120);
+
+        let slices = site_slices_between(&c, 0, 1000).unwrap();
+        assert_eq!(slices.len(), 2);
+        assert_eq!(slices[0].domain, "docs.rs");
+        assert_eq!(slices[0].category_id, Some(cid));
+        assert_eq!(slices[0].color, "#123456");
+        assert_eq!(slices[1].color, "#9A8F7C", "uncategorized falls back to grey");
+    }
+
+    #[test]
+    fn reminders_crud_and_ordering() {
+        let c = open_in_memory().unwrap();
+        let late = add_reminder(&c, "Stretch", 5_000, "daily").unwrap();
+        let soon = add_reminder(&c, "Standup", 1_000, "weekdays").unwrap();
+        let all = list_reminders(&c).unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all[0].id, soon, "pending reminders sort soonest first");
+        assert_eq!(all[0].repeat_rule, "weekdays");
+        assert!(!all[0].done);
+
+        mark_reminder_fired(&c, soon, 1_010).unwrap();
+        assert_eq!(list_reminders(&c).unwrap()[0].fired_at, Some(1_010));
+
+        // snoozing pushes it out and re-arms firing
+        snooze_reminder(&c, soon, 9_000).unwrap();
+        let r = list_reminders(&c).unwrap().into_iter().find(|r| r.id == soon).unwrap();
+        assert_eq!(r.at_ts, 9_000);
+        assert_eq!(r.fired_at, None);
+
+        // done reminders sink below pending ones
+        set_reminder_done(&c, late, true).unwrap();
+        let all = list_reminders(&c).unwrap();
+        assert_eq!(all[0].id, soon);
+        assert!(all[1].done);
+
+        update_reminder(&c, late, "Stretch legs", 6_000, "once").unwrap();
+        let r = list_reminders(&c).unwrap().into_iter().find(|r| r.id == late).unwrap();
+        assert_eq!(r.title, "Stretch legs");
+        assert_eq!(r.at_ts, 6_000);
+        assert_eq!(r.repeat_rule, "once");
+
+        delete_reminder(&c, late).unwrap();
+        assert_eq!(list_reminders(&c).unwrap().len(), 1);
     }
 }

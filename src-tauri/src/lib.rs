@@ -1,3 +1,4 @@
+pub mod autotrack;
 pub mod backup;
 pub mod browser;
 pub mod capture;
@@ -142,6 +143,17 @@ pub fn run() {
             crate::commands::usage_by_category,
             crate::commands::set_note_size,
             crate::commands::clear_alert_topmost,
+            crate::commands::site_slices,
+            crate::commands::rename_app,
+            crate::commands::set_site_name,
+            crate::commands::set_site_category,
+            crate::commands::list_reminders,
+            crate::commands::add_reminder,
+            crate::commands::update_reminder,
+            crate::commands::set_reminder_done,
+            crate::commands::snooze_reminder,
+            crate::commands::mark_reminder_fired,
+            crate::commands::delete_reminder,
         ])
         .setup(|app| {
             build_tray(app.handle())?;

@@ -43,12 +43,12 @@
     {#if !isToday}<button class="today" onclick={() => (day = dayStartLocal(new Date()))}>Today</button>{/if}
   </div>
   <form class="add" onsubmit={(e) => { e.preventDefault(); add(); }}>
-    <input bind:value={newTitle} placeholder="Add a task and press Enter…" aria-label="New task" />
+    <input bind:value={newTitle} placeholder="Add a to-do and press Enter…" aria-label="New task" />
     <button type="submit" class="addbtn">Add</button>
   </form>
 
   {#if tasks.length === 0}
-    <div class="empty">No tasks for this day. Add one above.</div>
+    <div class="empty">Nothing on the list for this day. Add something above.</div>
   {:else}
     <ul class="list">
       {#each tasks as task (task.id)}
