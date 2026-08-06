@@ -12,6 +12,7 @@
   import Digest from "$lib/components/Digest.svelte";
   import LimitWarning from "$lib/components/LimitWarning.svelte";
   import ReminderAlert from "$lib/components/ReminderAlert.svelte";
+  import UpdateDialog from "$lib/components/UpdateDialog.svelte";
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
   import { navIntent } from "$lib/nav";
@@ -60,6 +61,7 @@
   </section>
   <LimitWarning />
   <ReminderAlert />
+  <UpdateDialog />
 </main>
 {/if}
 

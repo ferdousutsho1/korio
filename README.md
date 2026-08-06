@@ -75,6 +75,7 @@ around ~50–90 MB of RAM instead of the hundreds you'd expect from an Electron 
 - **Your data is yours** — export to CSV/JSON, plus full backup & restore.
 - **Rename anything** — give apps and sites friendlier names; tracking keeps following the underlying exe/domain.
 - **Theming** — light/dark, custom accent color, background tints, and a customizable sidebar.
+- **In-app updates** — check from Settings, see what's new, then update and restart in place. Releases are signature-verified before install; you can skip a version or be reminded later.
 - **Lightweight & portable** — copy the folder to any Windows 10/11 PC and run; no installer required.
 
 ---

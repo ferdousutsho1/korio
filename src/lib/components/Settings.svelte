@@ -10,6 +10,21 @@
   import { ensureNotificationPermission, refreshDigestUnread } from "$lib/digest";
   import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
   import { SOUNDS, getSoundPref, setSoundPref, playSound, getLoopPref, setLoopPref, type SoundType, type SoundId } from "$lib/sound";
+  import { checkForUpdates, updateStatus, updateDialogOpen, currentVersion,
+    loadPrefs, setAutoCheck } from "$lib/updates";
+
+  let autoUpdate = $state(true);
+  function toggleAutoUpdate() { autoUpdate = !autoUpdate; setAutoCheck(autoUpdate); }
+  /** One-line summary of the last check, shown next to the button. */
+  let updateLine = $derived.by(() => {
+    const s = $updateStatus;
+    if (s.state === "checking") return "Checking…";
+    if (s.state === "uptodate") return "You're on the latest version.";
+    if (s.state === "available") return `Korio ${s.version} is available.`;
+    if (s.state === "downloading" || s.state === "ready") return `Installing ${s.version}…`;
+    if (s.state === "error") return "Last check failed.";
+    return "";
+  });
 
   let pomoSound = $state(getSoundPref("pomodoro"));
   let timerSound = $state(getSoundPref("timer"));
@@ -109,6 +124,7 @@
     limitPin = s["limit_pin_enabled"] === "true";
     autotrack = s["autotrack_enabled"] === "true";
     autotrackMinutes = Number(s["autotrack_minutes"]) || 10;
+    autoUpdate = loadPrefs().auto;
     try { pinSet = await hasPin(); } catch { pinSet = false; }
     try { browser = await browserStatus(); } catch { browser = null; }
     browserPoll = setInterval(async () => {
@@ -196,6 +212,27 @@
         aria-label={t.label} onclick={() => toggle(t.key)}><span class="knob"></span></button>
     </div>
   {/each}
+
+  <div class="label" style="margin-top:28px">Updates</div>
+  <div class="row">
+    <div class="text"><div class="name">Version</div>
+      <div class="help">You're running Korio {$currentVersion || "…"}. Updates are downloaded from the
+        official GitHub releases and verified against Korio's signing key before they're installed.</div></div>
+    <div class="seg">
+      <button onclick={() => { updateDialogOpen.set(true); checkForUpdates(true); }}
+        disabled={$updateStatus.state === "checking"}>
+        {$updateStatus.state === "checking" ? "Checking…" : "Check for updates"}
+      </button>
+    </div>
+  </div>
+  {#if updateLine}<p class="datamsg">{updateLine}</p>{/if}
+  <div class="row">
+    <div class="text"><div class="name">Check automatically</div>
+      <div class="help">Look for a new version shortly after launch and once a day. You'll still get
+        Skip this version and Remind me later on the prompt.</div></div>
+    <button class="sw" class:on={autoUpdate} role="switch" aria-checked={autoUpdate}
+      aria-label="Check for updates automatically" onclick={toggleAutoUpdate}><span class="knob"></span></button>
+  </div>
 
   <div class="label" style="margin-top:28px">Notifications</div>
   <div class="row">
@@ -381,6 +418,7 @@
     color: var(--muted); cursor: pointer; }
   .seg button.on, .tints button.on { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
   .seg button:hover, .tints button:hover, .reset:hover { color: var(--text); }
+  .seg button:disabled { opacity: .5; cursor: default; }
   .accents { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .csw { width: 24px; height: 24px; border-radius: 7px; border: 2px solid transparent; cursor: pointer; padding: 0; }
   .csw.on { border-color: var(--text); }
