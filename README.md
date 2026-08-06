@@ -34,7 +34,7 @@ working *smarter*.
 ## What is Korio?
 
 Korio quietly times how long you *actively* use a chosen set of apps and websites, turns that into clear
-visualizations, and gives you gentle tools to stay on track — daily limits, a focus score, goals, and a
+visualizations, and gives you gentle tools to stay on track — daily limits, a focus score, reminders, and a
 small suite of built-in utilities. Everything lives in a local SQLite file on your machine: **no accounts,
 no cloud, no telemetry, no network calls.**
 
@@ -48,29 +48,32 @@ around ~50–90 MB of RAM instead of the hundreds you'd expect from an Electron 
 ### 📊 Tracking & insight
 - **Automatic focus tracking** — times active use of the apps you choose (counts only while an app is focused *and* you're active; idle time is paused).
 - **Categories & Focus Score** — group apps into color-coded categories (Productivity, Entertainment, custom…), each marked productive / neutral / distracting; your Focus Score reflects the balance.
-- **Customizable dashboard** — focus breakdown, category pie, focus score, "tracking now," and compact stats/tasks/notes/goals cards you can toggle and drag to reorder.
-- **Stats** — date-range picker, per-app usage bars, a GitHub-style daily heatmap, and a 24-hour timeline ribbon.
+- **Customizable dashboard** — app focus breakdown, site focus breakdown, category pie, focus score, "tracking now," and compact stats/to-do/notes cards you can toggle and drag to reorder.
+- **App Stats** — date-range picker, per-app usage bars, a labelled daily-activity heatmap, and an hour-gridded 24-hour timeline ribbon with a per-app key.
+- **Auto-tracking** — optionally let Korio add any non-system app you keep focused past a threshold to the Watchlist by itself.
 
 ### 🌐 Website tracking (optional)
 - **Per-site time tracking** via a companion Chrome/Edge extension over a **local-only** channel (127.0.0.1) — domains only, never full URLs.
-- **Per-site daily limits** with warn-or-block enforcement, plus a "hide sites under X minutes" filter.
+- **Per-site daily limits** with warn-or-block enforcement, usage meters, categories, renaming, and a "hide sites under X minutes" filter.
+- **Keeps working offline** — closing the browser only pauses new site data; your existing stats stay on screen behind a small "not connected" notice.
 
 ### ⏱️ Limits & tools
 - **Per-app daily limits** — set a cap and choose *Warn* or *Auto-close* when you go over. The limit alert surfaces over other apps with a (loopable) sound.
+- **PIN-locked escape hatches** — optionally require your PIN to *Snooze* or *Ignore* a limit, so blowing past it takes a deliberate act.
 - **Built-in tools** — Stopwatch, Countdown Timer, World Clock, and a configurable **Pomodoro** timer with selectable, optionally-looping notification sounds.
 
 ### ✅ Productivity suite
-- **Tasks** — a per-date task list (view and edit previous days).
+- **To-do list** — a per-date list (view and edit previous days).
+- **Reminders** — scheduled nudges with repeat rules (once / daily / weekdays / weekly), plus snooze-for-an-hour or a time you pick.
 - **Sticky Notes** — color-coded notes with due dates, freely resizable.
-- **Goals & streaks** — set time goals (productive / per-app / total) and track current and best streaks.
-- **End-of-day digest** — an optional once-a-day summary notification.
+- **End of day digest** — a short visual recap of the day (top apps, top sites, where the time went, limits blown through) with commentary. The tab glows when a new one is ready.
 - **Global quick-capture** — a system-wide hotkey to jot a task or note without switching windows.
 - **Quick-launch** — start any watched app straight from Korio.
 
 ### 🔒 Privacy, data & polish
 - **100% offline & local** — all data in a local SQLite database (`%APPDATA%\Korio\`); no telemetry, no network. Your data is kept across app updates.
 - **Your data is yours** — export to CSV/JSON, plus full backup & restore.
-- **App lock** — optional PIN to open Korio.
+- **Rename anything** — give apps and sites friendlier names; tracking keeps following the underlying exe/domain.
 - **Theming** — light/dark, custom accent color, background tints, and a customizable sidebar.
 - **Lightweight & portable** — copy the folder to any Windows 10/11 PC and run; no installer required.
 

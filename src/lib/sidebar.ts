@@ -5,7 +5,7 @@ const KEY = "korio.sidebar.hidden";
 /** Nav ids the user can never hide. */
 export const ALWAYS = ["settings"];
 /** All hideable nav ids. */
-export const HIDEABLE = ["dashboard", "stats", "watchlist", "sites", "tools", "tasks", "notes", "goals"];
+export const HIDEABLE = ["dashboard", "stats", "watchlist", "sites", "digest", "tools", "tasks", "reminders", "notes"];
 
 function load(): string[] {
   if (!browser) return [];

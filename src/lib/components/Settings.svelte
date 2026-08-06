@@ -7,7 +7,7 @@
   import { save, open } from "@tauri-apps/plugin-dialog";
   import { exportData, backupDb, restoreDb } from "$lib/api";
   import { hasPin, setPin, clearPin } from "$lib/api";
-  import { ensureNotificationPermission } from "$lib/digest";
+  import { ensureNotificationPermission, refreshDigestUnread } from "$lib/digest";
   import { setCaptureShortcut, browserStatus, setBrowserEnabled, type BrowserStatus } from "$lib/api";
   import { SOUNDS, getSoundPref, setSoundPref, playSound, getLoopPref, setLoopPref, type SoundType, type SoundId } from "$lib/sound";
 
@@ -31,6 +31,9 @@
   let dataMsg = $state("");
   let pinSet = $state(false);
   let newPin = $state("");
+  let limitPin = $state(false);
+  let autotrack = $state(false);
+  let autotrackMinutes = $state(10);
   let digestEnabled = $state(false);
   let digestTime = $state("18:00");
   let captureEnabled = $state(true);
@@ -38,7 +41,26 @@
   let browserPoll: ReturnType<typeof setInterval> | null = null;
 
   async function savePin() { if (newPin.length < 4) return; await setPin(newPin); pinSet = true; newPin = ""; }
-  async function removePin() { await clearPin(); pinSet = false; }
+  async function removePin() {
+    await clearPin();
+    pinSet = false;
+    // Without a PIN the gate can't hold, so turn it off rather than leaving it armed-but-open.
+    if (limitPin) { limitPin = false; await setSetting("limit_pin_enabled", "false"); }
+  }
+  async function toggleLimitPin() {
+    if (!pinSet) return;
+    limitPin = !limitPin;
+    await setSetting("limit_pin_enabled", limitPin ? "true" : "false");
+  }
+  async function toggleAutotrack() {
+    autotrack = !autotrack;
+    await setSetting("autotrack_enabled", autotrack ? "true" : "false");
+  }
+  async function onAutotrackMinutes(e: Event) {
+    const v = Math.max(1, Math.min(600, Math.round(+(e.currentTarget as HTMLInputElement).value || 10)));
+    autotrackMinutes = v;
+    await setSetting("autotrack_minutes", String(v));
+  }
   async function doExport(format: "csv" | "json") {
     const path = await save({ defaultPath: `korio-export.${format}`,
       filters: [{ name: format.toUpperCase(), extensions: [format] }] });
@@ -54,10 +76,11 @@
   }
 
   const navOptions = [
-    { id: "dashboard", label: "Dashboard" }, { id: "stats", label: "Stats" },
+    { id: "dashboard", label: "Dashboard" }, { id: "stats", label: "App Stats" },
     { id: "watchlist", label: "Watchlist" }, { id: "sites", label: "Sites" },
-    { id: "tools", label: "Tools" }, { id: "tasks", label: "Tasks" },
-    { id: "notes", label: "Notes" }, { id: "goals", label: "Goals" },
+    { id: "digest", label: "End of day digest" },
+    { id: "tools", label: "Tools" }, { id: "tasks", label: "To-do list" },
+    { id: "reminders", label: "Reminders" }, { id: "notes", label: "Notes" },
   ];
 
   type Toggle = { key: string; label: string; help: string; def: boolean };
@@ -83,6 +106,9 @@
     digestEnabled = s["digest_enabled"] === "true";
     digestTime = s["digest_time"] || "18:00";
     captureEnabled = s["capture_enabled"] !== "false";
+    limitPin = s["limit_pin_enabled"] === "true";
+    autotrack = s["autotrack_enabled"] === "true";
+    autotrackMinutes = Number(s["autotrack_minutes"]) || 10;
     try { pinSet = await hasPin(); } catch { pinSet = false; }
     try { browser = await browserStatus(); } catch { browser = null; }
     browserPoll = setInterval(async () => {
@@ -117,6 +143,7 @@
   async function onDigestTime(e: Event) {
     digestTime = (e.currentTarget as HTMLInputElement).value || "18:00";
     await setSetting("digest_time", digestTime);
+    await refreshDigestUnread();
   }
 
   async function toggle(key: string) {
@@ -172,17 +199,16 @@
 
   <div class="label" style="margin-top:28px">Notifications</div>
   <div class="row">
-    <div class="text"><div class="name">End-of-day digest</div>
-      <div class="help">A daily summary of your focus time, score, top app, and goals.</div></div>
+    <div class="text"><div class="name">End-of-day digest notification</div>
+      <div class="help">Send a desktop toast when the day's digest is ready. The digest tab works either way.</div></div>
     <button class="sw" class:on={digestEnabled} role="switch" aria-checked={digestEnabled}
       aria-label="End-of-day digest" onclick={toggleDigest}><span class="knob"></span></button>
   </div>
-  {#if digestEnabled}
-    <div class="row">
-      <div class="text"><div class="name">Digest time</div><div class="help">When the daily summary is shown.</div></div>
-      <input class="time" type="time" value={digestTime} onchange={onDigestTime} aria-label="Digest time" />
-    </div>
-  {/if}
+  <div class="row">
+    <div class="text"><div class="name">Digest time</div>
+      <div class="help">When the day's digest is generated — the sidebar tab glows until you open it.</div></div>
+    <input class="time" type="time" value={digestTime} onchange={onDigestTime} aria-label="Digest time" />
+  </div>
 
   <div class="row">
     <div class="text"><div class="name">Pomodoro sound</div>
@@ -288,10 +314,10 @@
   </div>
   {#if dataMsg}<p class="datamsg">{dataMsg}</p>{/if}
 
-  <div class="label" style="margin-top:28px">Privacy</div>
+  <div class="label" style="margin-top:28px">Limits</div>
   <div class="row">
-    <div class="text"><div class="name">App lock</div>
-      <div class="help">{pinSet ? "A PIN is required to open Korio." : "Require a PIN (4+ digits) to open Korio."}</div></div>
+    <div class="text"><div class="name">Korio PIN</div>
+      <div class="help">{pinSet ? "A PIN is set. It's used to protect the actions below." : "Set a PIN (4+ digits) to protect limit escape hatches."}</div></div>
     {#if pinSet}
       <button class="reset" onclick={removePin}>Remove PIN</button>
     {:else}
@@ -301,6 +327,33 @@
       </div>
     {/if}
   </div>
+  <div class="row">
+    <div class="text"><div class="name">Lock Snooze &amp; Ignore with the PIN</div>
+      <div class="help">{pinSet
+        ? "When an app or site hits its daily limit, snoozing or ignoring it needs your PIN. Closing never does."
+        : "Set a PIN above to enable this."}</div></div>
+    <button class="sw" class:on={limitPin} role="switch" aria-checked={limitPin} disabled={!pinSet}
+      aria-label="Lock snooze and ignore with PIN" onclick={toggleLimitPin}><span class="knob"></span></button>
+  </div>
+
+  <div class="label" style="margin-top:28px">Auto-tracking</div>
+  <div class="row">
+    <div class="text"><div class="name">Add focused apps automatically</div>
+      <div class="help">Any non-system app you keep focused past the threshold below joins the Watchlist on its own.</div></div>
+    <button class="sw" class:on={autotrack} role="switch" aria-checked={autotrack}
+      aria-label="Auto-add focused apps" onclick={toggleAutotrack}><span class="knob"></span></button>
+  </div>
+  {#if autotrack}
+    <div class="row">
+      <div class="text"><div class="name">Threshold</div>
+        <div class="help">Minutes of focus in a day before an app is added.</div></div>
+      <div class="seg">
+        <input class="pin" type="number" min="1" max="600" value={autotrackMinutes}
+          aria-label="Auto-track threshold minutes" onchange={onAutotrackMinutes} />
+        <span class="unit">min</span>
+      </div>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -315,6 +368,8 @@
   .sw { width: 44px; height: 26px; border-radius: 13px; border: 1px solid var(--line); background: var(--bg);
     position: relative; cursor: pointer; flex-shrink: 0; transition: background var(--tick); }
   .sw.on { background: var(--accent); border-color: var(--accent); }
+  .sw:disabled { opacity: .45; cursor: default; }
+  .unit { color: var(--muted); font-size: 12px; align-self: center; }
   .knob { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
     background: var(--surface); transition: left var(--tick); }
   .sw.on .knob { left: 20px; background: var(--accent-contrast); }

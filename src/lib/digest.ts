@@ -31,25 +31,129 @@ export interface DigestStats {
   score: number;
   topName: string | null;
   topSeconds: number;
-  goalsMet: number;
-  goalsTotal: number;
 }
 
 /** Build the notification title + body from the day's stats. */
 export function composeDigest(s: DigestStats): { title: string; body: string } {
   const lines = [`${formatDuration(s.totalSeconds)} focused · score ${s.score}`];
   if (s.topName) lines.push(`Top: ${s.topName} ${formatDuration(s.topSeconds)}`);
-  if (s.goalsTotal > 0) lines.push(`${s.goalsMet}/${s.goalsTotal} goals met`);
   return { title: "Korio — today's recap", body: lines.join("\n") };
+}
+
+// ---- End-of-day digest highlights ----
+
+export interface Overage {
+  name: string;
+  kind: "app" | "site";
+  capSeconds: number;
+  usedSeconds: number;
+}
+
+export interface Highlights {
+  totalSeconds: number;
+  score: number;
+  topName: string | null;
+  topSeconds: number;
+  topSiteName: string | null;
+  topSiteSeconds: number;
+  tasksDone: number;
+  tasksTotal: number;
+  pomodoros: number;
+  overages: Overage[];
+}
+
+/**
+ * Short, slightly cheeky commentary on the day — at most three lines, most
+ * pointed first. Pure and deterministic so it can be snapshot-tested.
+ */
+export function digestQuips(h: Highlights): string[] {
+  const out: string[] = [];
+  const worst = [...h.overages].sort(
+    (a, b) => b.usedSeconds - b.capSeconds - (a.usedSeconds - a.capSeconds),
+  )[0];
+
+  if (worst) {
+    const over = formatDuration(worst.usedSeconds - worst.capSeconds);
+    const ratio = worst.capSeconds > 0 ? worst.usedSeconds / worst.capSeconds : 1;
+    if (ratio >= 3) {
+      out.push(`${worst.name} ran ${over} past its limit. At this point the limit is just a suggestion you've heard of.`);
+    } else if (ratio >= 2) {
+      out.push(`You doubled ${worst.name}'s limit — ${over} over. Bold.`);
+    } else {
+      out.push(`${worst.name} went ${over} over its limit. Close, though.`);
+    }
+    if (h.overages.length > 1) {
+      out.push(`${h.overages.length} limits ignored today. Impressive commitment to the bit.`);
+    }
+  }
+
+  if (h.totalSeconds === 0) {
+    out.push("Nothing tracked today. Either a proper rest day, or Korio took one.");
+  } else if (h.score >= 85 && !worst) {
+    out.push(`Focus score ${h.score}. Suspiciously productive — who are you and what did you do with yourself?`);
+  } else if (h.score <= 35) {
+    out.push(`Focus score ${h.score}. Tomorrow's a fresh scoreboard.`);
+  }
+
+  if (h.tasksTotal > 0 && h.tasksDone === h.tasksTotal) {
+    out.push("Every to-do checked off. Show-off.");
+  } else if (h.tasksTotal > 0 && h.tasksDone === 0) {
+    out.push(`${h.tasksTotal} to-do${h.tasksTotal === 1 ? "" : "s"} still waiting patiently.`);
+  }
+
+  if (out.length === 0 && h.topName) {
+    out.push(`${h.topName} took the crown at ${formatDuration(h.topSeconds)}.`);
+  }
+  return out.slice(0, 3);
+}
+
+/**
+ * Whether Snooze/Ignore on a limit alert must be unlocked with the PIN.
+ * Requires BOTH the setting and an actual PIN — otherwise the gate would be
+ * armed but unopenable (and `verify_pin` fails open when no PIN is stored).
+ */
+export function limitPinRequired(settings: Record<string, string>, hasPin: boolean): boolean {
+  return settings.limit_pin_enabled === "true" && hasPin;
+}
+
+/** The day's digest is ready once the local clock passes the configured time. */
+export function isDigestReady(nowMinutes: number, targetMinutes: number): boolean {
+  return nowMinutes >= targetMinutes;
+}
+
+/** Unread = a digest is ready for today and today's hasn't been opened yet. */
+export function isDigestUnread(ready: boolean, lastViewed: string, today: string): boolean {
+  return ready && lastViewed !== today;
 }
 
 // ---- Scheduler (main window only; no-ops without Tauri) ----
 import { browser } from "$app/environment";
+import { writable } from "svelte/store";
 import { isMainWindow } from "$lib/sync";
-import { getSettings, setSetting, usageToday, scoreToday, goalsProgress } from "$lib/api";
+import { getSettings, setSetting, usageToday, scoreToday } from "$lib/api";
 import { navIntent } from "$lib/nav";
 
 let started = false;
+
+/** True while today's digest is ready but hasn't been opened — drives the sidebar glow. */
+export const digestUnread = writable(false);
+
+/** Re-read the digest schedule and recompute the unread flag. Safe without Tauri. */
+export async function refreshDigestUnread() {
+  try {
+    const s = await getSettings();
+    const target = parseHm(s.digest_time || "18:00") ?? 18 * 60;
+    const now = new Date();
+    const ready = isDigestReady(minutesOfDay(now), target);
+    digestUnread.set(isDigestUnread(ready, s.digest_last_viewed || "", ymd(now)));
+  } catch { digestUnread.set(false); }
+}
+
+/** Mark today's digest as read (clears the glow until tomorrow). */
+export async function markDigestViewed() {
+  digestUnread.set(false);
+  try { await setSetting("digest_last_viewed", ymd(new Date())); } catch { /* not in Tauri */ }
+}
 
 /** Start the once-a-day digest scheduler (main window only; safe to call without Tauri). */
 export function initDigest() {
@@ -57,6 +161,8 @@ export function initDigest() {
   started = true;
   setTimeout(check, 3_000);          // shortly after launch
   setInterval(check, 30_000);        // then every 30s
+  void refreshDigestUnread();
+  setInterval(refreshDigestUnread, 60_000);
   registerClickHandler();
 }
 
@@ -72,18 +178,17 @@ async function check() {
   if (!shouldSend(true, minutesOfDay(now), target, s.digest_last_sent || "", today)) return;
   await sendDigest();
   await setSetting("digest_last_sent", today);
+  await refreshDigestUnread();
 }
 
 async function sendDigest() {
   try {
-    const [usage, score, goals] = await Promise.all([usageToday(), scoreToday(), goalsProgress()]);
+    const [usage, score] = await Promise.all([usageToday(), scoreToday()]);
     const total = usage.reduce((a, u) => a + u.seconds, 0);
     const top = usage[0] ?? null; // usageToday is sorted DESC
-    const goalsMet = goals.filter((g) => g.met_today).length;
     const { title, body } = composeDigest({
       totalSeconds: total, score,
       topName: top?.display_name ?? null, topSeconds: top?.seconds ?? 0,
-      goalsMet, goalsTotal: goals.length,
     });
     const notif = await import("@tauri-apps/plugin-notification");
     let granted = await notif.isPermissionGranted();
@@ -98,7 +203,7 @@ async function registerClickHandler() {
     const notif = await import("@tauri-apps/plugin-notification");
     if (typeof notif.onAction === "function") {
       await notif.onAction(async () => {
-        navIntent.set("dashboard");
+        navIntent.set("digest");
         try {
           const { getCurrentWindow } = await import("@tauri-apps/api/window");
           const w = getCurrentWindow();

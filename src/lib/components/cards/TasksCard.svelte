@@ -9,7 +9,7 @@
 </script>
 
 <div class="card">
-  <div class="label">Tasks today</div>
+  <div class="label">To-do list today</div>
   {#if open.length === 0}
     <div class="muted">Nothing open. 🎉</div>
   {:else}

@@ -116,6 +116,17 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
             limit_action      TEXT NOT NULL DEFAULT 'warn'
                                CHECK (limit_action IN ('warn','close'))
         );
+        CREATE TABLE IF NOT EXISTS reminders (
+            id            INTEGER PRIMARY KEY,
+            title         TEXT NOT NULL,
+            at_ts         INTEGER NOT NULL,
+            repeat_rule   TEXT NOT NULL DEFAULT 'once'
+                           CHECK (repeat_rule IN ('once','daily','weekdays','weekly')),
+            done          INTEGER NOT NULL DEFAULT 0,
+            fired_at      INTEGER,
+            created_at    INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_reminders_at ON reminders(at_ts);
         "#,
     )?;
     add_column_if_missing(conn, "apps", "daily_cap_seconds", "INTEGER NOT NULL DEFAULT 0")?;
@@ -141,7 +152,60 @@ pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
     add_column_if_missing(conn, "apps", "category_id", "INTEGER")?;
     add_column_if_missing(conn, "notes", "width", "INTEGER")?;
     add_column_if_missing(conn, "notes", "height", "INTEGER")?;
+    // Sites can be renamed and categorised just like apps. Tracking stays keyed on `domain`.
+    add_column_if_missing(conn, "sites", "display_name", "TEXT")?;
+    add_column_if_missing(conn, "sites", "category_id", "INTEGER")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    fn cols(conn: &Connection, table: &str) -> Vec<String> {
+        let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})")).unwrap();
+        stmt.query_map([], |r| r.get::<_, String>(1)).unwrap().collect::<rusqlite::Result<_>>().unwrap()
+    }
+
+    /// A v0.2.0 database has `sites` without display_name/category_id and no
+    /// `reminders` table. Migrating must add both without touching existing rows.
+    #[test]
+    fn upgrades_a_pre_0_3_database_without_losing_data() {
+        let conn = Connection::open_in_memory().unwrap();
+        init_connection(&conn).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE sites (
+                domain            TEXT PRIMARY KEY,
+                daily_cap_seconds INTEGER NOT NULL DEFAULT 0,
+                limit_action      TEXT NOT NULL DEFAULT 'warn'
+                                   CHECK (limit_action IN ('warn','close'))
+             );
+             INSERT INTO sites (domain, daily_cap_seconds, limit_action)
+             VALUES ('youtube.com', 1800, 'close');",
+        ).unwrap();
+
+        migrate(&conn).unwrap();
+
+        let site_cols = cols(&conn, "sites");
+        assert!(site_cols.contains(&"display_name".to_string()));
+        assert!(site_cols.contains(&"category_id".to_string()));
+        assert!(!cols(&conn, "reminders").is_empty(), "reminders table is created");
+
+        let (cap, action): (i64, String) = conn.query_row(
+            "SELECT daily_cap_seconds, limit_action FROM sites WHERE domain = 'youtube.com'",
+            [], |r| Ok((r.get(0)?, r.get(1)?)),
+        ).unwrap();
+        assert_eq!((cap, action.as_str()), (1800, "close"), "existing cap survives");
+    }
+
+    /// Migration is idempotent — booting twice must not error or duplicate columns.
+    #[test]
+    fn migrating_twice_is_a_no_op() {
+        let conn = crate::db::open_in_memory().unwrap();
+        let before = cols(&conn, "sites");
+        migrate(&conn).unwrap();
+        assert_eq!(cols(&conn, "sites"), before);
+    }
 }
 
 /// Add a column only if it isn't already present (SQLite ALTER lacks IF NOT EXISTS).

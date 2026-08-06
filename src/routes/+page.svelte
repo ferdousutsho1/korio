@@ -7,10 +7,11 @@
   import Tools from "$lib/components/Tools.svelte";
   import Tasks from "$lib/components/Tasks.svelte";
   import Notes from "$lib/components/Notes.svelte";
-  import Goals from "$lib/components/Goals.svelte";
   import Sites from "$lib/components/Sites.svelte";
+  import Reminders from "$lib/components/Reminders.svelte";
+  import Digest from "$lib/components/Digest.svelte";
   import LimitWarning from "$lib/components/LimitWarning.svelte";
-  import LockScreen from "$lib/components/LockScreen.svelte";
+  import ReminderAlert from "$lib/components/ReminderAlert.svelte";
   import { browser } from "$app/environment";
   import { onMount } from "svelte";
   import { navIntent } from "$lib/nav";
@@ -21,7 +22,7 @@
   onMount(() => navIntent.subscribe((v) => { if (v) { active = v; navIntent.set(null); } }));
   $effect(() => {
     if ($hiddenSections.includes(active)) {
-      const order = ["dashboard","stats","watchlist","sites","tools","tasks","notes","goals","settings"];
+      const order = ["dashboard","stats","watchlist","sites","digest","tools","tasks","reminders","notes","settings"];
       active = order.find((id) => !$hiddenSections.includes(id)) ?? "settings";
     }
   });
@@ -42,12 +43,14 @@
         <Tools />
       {:else if active === "tasks"}
         <Tasks />
+      {:else if active === "reminders"}
+        <Reminders />
       {:else if active === "notes"}
         <Notes />
-      {:else if active === "goals"}
-        <Goals />
       {:else if active === "sites"}
         <Sites />
+      {:else if active === "digest"}
+        <Digest />
       {:else if active === "settings"}
         <Settings />
       {:else}
@@ -56,7 +59,7 @@
     </div>
   </section>
   <LimitWarning />
-  <LockScreen />
+  <ReminderAlert />
 </main>
 {/if}
 
